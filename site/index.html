@@ -1,0 +1,747 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>HireLens · Every resume scored before you call</title>
+<meta name="description" content="HireLens reads every resume you drop on a job, scores the fit, and tracks each call, message and interview until someone is selected.">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 26 26'%3E%3Crect width='16' height='26' rx='5' fill='%2306142e'/%3E%3Ccircle cx='8' cy='9' r='4' fill='%23f5f8fc'/%3E%3Crect x='18' width='8' height='12' rx='3' fill='%232f74d0'/%3E%3Crect x='18' y='14' width='8' height='12' rx='3' fill='%23ddf545'/%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Funnel+Display:wght@300;400;500&display=swap" rel="stylesheet">
+<script>if(!matchMedia('(prefers-reduced-motion: reduce)').matches){document.documentElement.dataset.preloader='';document.documentElement.classList.add('js')}</script>
+<style>
+/* Hallmark · checked: 2026-11-13 · genre: modern-minimal (inferred) · light theme by standing preference
+ * floor: swept · built: external (GetLayers Kelder prompt, adapted to HireLens: light hero, own copy, own mark, no invented figures; every demo number is labelled as sample)
+ * built: GetLayers archive · theme: brand (Kelder) · signature: the match dashboard flattening from a tilt as you scroll · v2.0.0 */
+:root{
+  --mist:#f5f8fc; --white:#ffffff; --panel:#f1f5fb; --line:#dde5f0; --dash:#9fb3d1;
+  --ink:#06142e; --slate:#55667f; --faint:#8494ab;
+  --blue-100:#d0e1f8; --blue-200:#bfd6f6; --blue-300:#8dbaf0; --blue-400:#5c9be6; --blue-500:#2f74d0; --blue-600:#0a4da6;
+  --lime:#ddf545; --focus:#2f74d0;
+  --grad-hero:linear-gradient(180deg,#cfe0f7 0%,#e2edfb 38%,#eef4fc 70%,var(--mist) 100%);
+  --grad-deep:radial-gradient(110% 80% at 0% 0%,rgb(141 186 240 / .38),transparent 55%),linear-gradient(160deg,#0e459a,#082a62);
+  --grad-steps:radial-gradient(70% 50% at 0% 0%,rgb(141 186 240 / .35),transparent 60%),radial-gradient(60% 50% at 100% 100%,rgb(47 116 208 / .5),transparent 60%),linear-gradient(170deg,#0b3a82,#082a62);
+  --grad-tile:radial-gradient(90% 90% at 20% 0%,#5c9be6,transparent 70%),linear-gradient(160deg,#2f74d0,#0a4da6);
+  --font:"Funnel Display",ui-sans-serif,system-ui,sans-serif;
+  --r-card:20px; --r-pill:999px;
+  --ease-out:cubic-bezier(.16,1,.3,1); --dur-micro:120ms; --dur-short:220ms; --dur-long:420ms;
+  --gutter:max(2.5rem,calc((100% - 85rem)/2));
+  --sec:110px;
+}
+@media (max-width:1024px){:root{--gutter:20px;--sec:80px}}
+@media (max-width:560px){:root{--sec:56px}}
+*,*::before,*::after{box-sizing:border-box}
+html,body{overflow-x:clip}
+html{scroll-behavior:smooth;scroll-padding-top:90px}
+html[data-preloader]{overflow:hidden}
+body{margin:0;background:var(--mist);color:var(--ink);font-family:var(--font);font-size:17px;line-height:1.5;-webkit-font-smoothing:antialiased;font-synthesis:none}
+::selection{background:var(--lime);color:var(--ink)}
+:focus-visible{outline:2px solid var(--focus);outline-offset:3px}
+a{color:inherit}
+h1,h2,h3{margin:0;font-weight:400;letter-spacing:-.04em;line-height:1.02;text-wrap:balance;overflow-wrap:break-word;min-width:0}
+p{margin:0;text-wrap:pretty}
+img,svg,canvas{display:block}
+.wrap{padding-inline:var(--gutter)}
+.vh{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap}
+.fig{font-weight:300;letter-spacing:-.05em;font-variant-numeric:tabular-nums}
+.muted{color:var(--slate)}
+
+/* buttons: the lime square grows to fill on hover */
+.btn{position:relative;isolation:isolate;overflow:hidden;display:inline-flex;align-items:center;justify-content:center;gap:10px;min-height:56px;padding:0 26px;border-radius:var(--r-pill);border:1px solid var(--ink);font:inherit;font-size:17px;color:var(--ink);background:transparent;text-decoration:none;cursor:pointer;white-space:nowrap;transition:color var(--dur-short) var(--ease-out),border-color var(--dur-short) var(--ease-out)}
+.btn::before{content:"";position:absolute;z-index:-1;left:18px;top:50%;width:10px;height:10px;border-radius:3px;background:var(--lime);transform:translate(0,-50%) scale(0);transition:transform .45s var(--ease-out),border-radius .45s var(--ease-out),left .45s var(--ease-out)}
+.btn .arr{transition:transform var(--dur-short) var(--ease-out)}
+@media (hover:hover) and (min-width:1025px){.btn:hover::before{transform:translate(0,-50%) scale(60);border-radius:0}.btn:hover{border-color:var(--lime)}.btn:hover .arr{transform:translateX(3px)}}
+.btn:focus-visible::before{transform:translate(0,-50%) scale(60);border-radius:0}
+.btn--lime{background:var(--lime);border-color:var(--lime)}
+.btn--lime::before{background:var(--ink)}
+@media (hover:hover) and (min-width:1025px){.btn--lime:hover{color:#fff;border-color:var(--ink)}}
+.btn--lime:focus-visible{color:#fff}
+.btn--white{background:#fff;border-color:#fff}
+.btn--onDark{color:#fff;border-color:rgb(255 255 255 / .6)}
+@media (hover:hover) and (min-width:1025px){.btn--onDark:hover{color:var(--ink)}}
+.btn--sm{min-height:48px;padding:0 20px;font-size:16px}
+.pill{display:inline-flex;align-items:center;gap:8px;min-height:36px;padding:0 14px 0 10px;border-radius:var(--r-pill);font-size:14px;background:#fff;border:1px solid var(--line);color:var(--ink)}
+.pill svg{width:16px;height:16px}
+.pill--glass{background:rgb(255 255 255 / .5);border-color:rgb(255 255 255 / .8);backdrop-filter:blur(8px)}
+.pill--dark{background:rgb(255 255 255 / .1);border-color:rgb(255 255 255 / .22);color:#fff}
+
+/* header */
+.header{position:relative;z-index:5;display:grid;grid-template-columns:1fr auto 1fr;align-items:center;gap:20px;padding-block:22px}
+.logo{display:inline-flex;align-items:center;gap:10px;font-size:22px;font-weight:500;letter-spacing:-.03em;text-decoration:none}
+.logo svg .lm{transition:transform .5s cubic-bezier(.34,1.56,.64,1)}
+@media (hover:hover){.logo:hover svg .lm{transform:translateY(-3px)}}
+.nav{display:flex;gap:32px;font-size:16px}
+.nav a{text-decoration:none;color:var(--ink)}
+.nav a:hover{text-decoration:underline;text-underline-offset:.2em;text-decoration-color:var(--blue-500)}
+.header-r{display:flex;justify-content:flex-end;align-items:center;gap:20px}
+.bar{position:fixed;inset:0 0 auto;z-index:50;background:var(--ink);color:#fff;transform:translateY(-105%);transition:transform .5s var(--ease-out)}
+.bar.on{transform:none}
+.bar .header{padding-block:8px}
+.bar .logo,.bar .nav a{color:#fff}
+.bar svg .ink{fill:#fff}
+@media (max-width:768px){.nav,.header-r .login{display:none}.header{grid-template-columns:1fr auto}}
+@media (max-width:560px){.header-r .btn{display:none}}
+
+/* hero */
+.hero{position:relative;background:var(--grad-hero);padding-bottom:24px;overflow:clip}
+.hero canvas.halftone{position:absolute;inset:0;width:100%;height:100%;pointer-events:none}
+.hero-copy{position:relative;z-index:2;text-align:center;display:grid;justify-items:center;gap:26px;padding-top:56px}
+.hero h1{font-size:clamp(46px,6vw,86px);max-width:15ch;letter-spacing:-.045em}
+.hero .lead{font-size:20px;max-width:34ch;color:var(--slate)}
+.hero-actions{display:flex;gap:12px;flex-wrap:wrap;justify-content:center}
+@media (max-width:560px){.hero-actions{display:grid;width:100%}.hero h1{font-size:44px}}
+.dash-stage{position:relative;z-index:2;margin-top:64px;perspective:1000px}
+.dash{--tilt:1;background:var(--grad-deep);color:#fff;border-radius:var(--r-card);padding:40px;display:grid;grid-template-columns:400px minmax(0,1fr);gap:48px;transform-origin:50% 0;transform:rotateX(calc(var(--tilt)*20deg)) scale(calc(1 - var(--tilt)*.1));will-change:transform}
+@media (max-width:1024px){.dash{grid-template-columns:1fr;gap:32px;padding:28px}}
+@media (max-width:560px){.dash{transform:rotateX(calc(var(--tilt)*7deg)) scale(calc(1 - var(--tilt)*.06));padding:20px}}
+.dash .lbl{font-size:14px;color:var(--blue-200)}
+.dash .big{font-size:clamp(64px,8vw,124px);line-height:.85;margin-top:12px}
+.dash .big small{font-size:.36em;letter-spacing:-.02em;color:var(--blue-200);margin-left:6px}
+.dash .who{font-size:22px;letter-spacing:-.02em;margin-top:18px}
+.dash .chip{display:inline-flex;align-items:center;gap:8px;margin-top:14px;padding:6px 12px;border-radius:var(--r-pill);background:rgb(255 255 255 / .1);font-size:14px}
+.dash .chip i{width:8px;height:8px;border-radius:2px;background:var(--lime)}
+.rows{margin-top:26px;display:grid}
+.rows div{display:flex;justify-content:space-between;gap:12px;padding:12px 0;border-top:1px dashed rgb(255 255 255 / .28);font-size:15px}
+.rows div span:last-child{font-variant-numeric:tabular-nums}
+.dash-right{display:grid;gap:22px;align-content:start;min-width:0}
+.dash-top{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap}
+.switch{position:relative;display:inline-flex;padding:4px;border-radius:var(--r-pill);background:rgb(255 255 255 / .1)}
+.switch button{position:relative;z-index:1;border:0;background:none;color:rgb(255 255 255 / .75);font:inherit;font-size:14px;padding:6px 14px;border-radius:var(--r-pill);cursor:pointer;transition:color var(--dur-short) var(--ease-out)}
+.switch button[aria-pressed="true"]{color:var(--ink)}
+.switch .knob{position:absolute;top:4px;bottom:4px;left:4px;border-radius:var(--r-pill);background:#fff;transition:transform .4s var(--ease-out),width .4s var(--ease-out)}
+.ranks{display:grid;gap:2px}
+.rank{display:grid;grid-template-columns:minmax(0,1.4fr) minmax(0,2fr) 64px;gap:16px;align-items:center;padding:12px 0;border-top:1px dashed rgb(255 255 255 / .2);font-size:15px}
+.rank b{font-weight:400}
+.rank .meta{font-size:13px;color:var(--blue-200)}
+.rank .track{height:8px;border-radius:4px;background:rgb(255 255 255 / .12);overflow:hidden}
+.rank .track i{display:block;height:100%;border-radius:0 4px 4px 0;background:var(--blue-300);transform-origin:left;transform:scaleX(var(--v))}
+.rank.top .track i{background:var(--lime)}
+.rank .pct{text-align:right;font-size:20px}
+@media (max-width:560px){.rank{grid-template-columns:1fr 54px}.rank .track{grid-column:1/-1;order:3}}
+.alloc{display:flex;gap:4px;height:10px}
+.alloc i{border-radius:3px;transform-origin:left}
+.legend{display:flex;flex-wrap:wrap;gap:8px 20px;font-size:13px;color:var(--blue-200)}
+.legend span{display:inline-flex;align-items:center;gap:8px}
+.legend span i{width:10px;height:10px;border-radius:3px}
+
+/* sections */
+.section{padding-top:var(--sec)}
+.rule{border:0;border-top:1px dashed var(--dash);margin:0 0 40px}
+.head{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:20px;margin-bottom:48px;align-items:start}
+.head .pill{justify-self:start}
+.head .h{grid-column:2/4;display:grid;gap:18px}
+.head h2{font-size:clamp(36px,4.2vw,60px)}
+.head p{font-size:19px;color:var(--slate);max-width:52ch}
+@media (max-width:768px){.head{grid-template-columns:1fr;justify-items:center;text-align:center}.head .pill{justify-self:center}.head .h{grid-column:1;max-width:560px;justify-items:center}}
+.card{background:var(--white);border-radius:var(--r-card);padding:32px;border:1px solid var(--line);position:relative;overflow:hidden;transition:transform .5s var(--ease-out)}
+@media (hover:hover) and (min-width:1025px){.card:hover{transform:translateY(-3px)}}
+.card h3{font-size:28px;letter-spacing:-.035em}
+.card p{color:var(--slate);font-size:16px}
+
+/* bento */
+.bento{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));grid-template-rows:auto auto auto;gap:20px}
+.b-weights{grid-row:1/3;display:grid;gap:22px;align-content:start}
+.b-formats{display:grid;gap:18px}
+.b-distance{display:grid;gap:8px;align-content:start}
+.b-meet{grid-column:3;grid-row:1/3;background:var(--grad-deep);color:#fff;border:0;display:grid;gap:22px;align-content:start;min-height:560px}
+.b-meet p{color:var(--blue-100)}
+.b-share{grid-column:2/4;display:flex;justify-content:space-between;align-items:center;gap:24px;flex-wrap:wrap}
+@media (max-width:1024px){.bento{grid-template-columns:repeat(2,minmax(0,1fr))}.b-weights{grid-row:auto}.b-meet{grid-column:2;grid-row:1/3}.b-share{grid-column:1/-1}}
+@media (max-width:768px){.bento{grid-template-columns:1fr}.b-meet{grid-column:1;grid-row:auto}}
+.wbars{display:grid;gap:14px;margin-top:6px}
+.wbar{display:grid;grid-template-columns:110px minmax(0,1fr) 42px;gap:12px;align-items:center;font-size:15px}
+.wbar .t{height:10px;border-radius:5px;background:var(--panel);overflow:hidden}
+.wbar .t i{display:block;height:100%;width:100%;transform-origin:left;transform:scaleX(var(--v));border-radius:0 5px 5px 0;background:var(--blue-500)}
+.wbar span:last-child{text-align:right;font-variant-numeric:tabular-nums;color:var(--slate)}
+.total{display:flex;align-items:baseline;gap:12px;padding-top:18px;border-top:1px dashed var(--dash)}
+.total .fig{font-size:76px;line-height:.85}
+.tiles{display:flex;gap:8px;flex-wrap:wrap}
+.tile{width:60px;height:72px;border-radius:12px;display:grid;place-items:center;font-size:14px;background:var(--blue-600);color:#fff}
+.tile.now{background:var(--lime);color:var(--ink)}
+.tile.ai{background:#fff;color:var(--blue-600);border:1px solid var(--blue-500)}
+.km{display:flex;align-items:baseline;gap:10px}
+.km .fig{font-size:124px;line-height:.82}
+.km span:last-child{font-size:44px;letter-spacing:-.04em}
+.tl{position:relative;display:grid;gap:30px;padding-left:28px;margin-top:8px}
+.tl::before{content:"";position:absolute;left:6px;top:8px;bottom:8px;border-left:1px dashed rgb(255 255 255 / .5)}
+.tl .pulse{position:absolute;left:3px;top:8px;width:7px;height:7px;border-radius:50%;background:var(--lime)}
+.tl div{position:relative;font-size:15px;display:grid;gap:2px}
+.tl div::before{content:"";position:absolute;left:-28px;top:6px;width:13px;height:13px;border-radius:50%;background:#fff}
+.tl div.l::before{background:var(--lime)}
+.tl small{color:var(--blue-200);font-size:13px}
+.b-meet canvas{position:absolute;inset:0;width:100%;height:100%;pointer-events:none}
+.b-meet > *:not(canvas){position:relative}
+.dotfield{position:absolute;right:-10px;top:-10px;width:220px;height:220px;opacity:.6;background-image:radial-gradient(circle,rgb(255 255 255 / .55) 1.5px,transparent 2px);background-size:16px 16px;-webkit-mask:radial-gradient(circle at 100% 0,#000,transparent 70%);mask:radial-gradient(circle at 100% 0,#000,transparent 70%)}
+.chips{display:flex;gap:8px;flex-wrap:wrap}
+.chip-l{display:inline-flex;align-items:center;min-height:40px;padding:0 16px;border-radius:var(--r-pill);border:1px solid var(--line);background:var(--panel);font-size:15px}
+
+/* channels */
+.rail{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:20px}
+@media (max-width:768px){.rail{grid-auto-flow:column;grid-template-columns:none;grid-auto-columns:320px;overflow-x:auto;scroll-snap-type:x mandatory;padding-bottom:12px;margin-inline:calc(var(--gutter)*-1);padding-inline:var(--gutter)}.rail > *{scroll-snap-align:start}}
+@media (max-width:560px){.rail{grid-auto-columns:258px}}
+.chan{display:grid;gap:18px;padding:12px;align-content:start}
+.chan .art{height:308px;border-radius:14px;background:var(--grad-tile);position:relative;overflow:hidden}
+.chan .art canvas{position:absolute;inset:0;width:100%;height:100%}
+.chan .body{padding:8px 20px 20px;display:grid;gap:12px}
+.chan .rowd{display:flex;justify-content:space-between;padding:12px 0;border-top:1px dashed var(--dash);font-size:15px}
+.chan .rowd span:first-child{color:var(--slate)}
+
+/* steps (dark block) */
+.steps-stage{perspective:1000px}
+.steps{position:relative;background:var(--grad-steps);color:#fff;border-radius:32px;padding:96px var(--gutter) 110px;overflow:hidden;transform-origin:50% 0}
+.steps .head h2{color:#fff}
+.steps .head p{color:var(--blue-100)}
+.steps canvas.flow{position:absolute;inset:0;width:100%;height:100%;pointer-events:none}
+.steps .dots-tl,.steps .dots-br{position:absolute;width:260px;height:200px;background-image:radial-gradient(circle,rgb(255 255 255 / .4) 1.4px,transparent 2px);background-size:14px 14px;pointer-events:none}
+.steps .dots-tl{left:0;top:0;-webkit-mask:radial-gradient(circle at 0 0,#000,transparent 70%);mask:radial-gradient(circle at 0 0,#000,transparent 70%)}
+.steps .dots-br{right:0;bottom:0;-webkit-mask:radial-gradient(circle at 100% 100%,#000,transparent 70%);mask:radial-gradient(circle at 100% 100%,#000,transparent 70%)}
+.steptrack{position:relative;max-width:1040px;margin:0 auto;display:grid;gap:56px}
+.steptrack .spine{position:absolute;left:50%;top:32px;bottom:32px;border-left:1px dashed rgb(255 255 255 / .35)}
+.steptrack .spine i{position:absolute;left:-1px;top:0;width:2px;height:100%;background:var(--lime);transform-origin:top;transform:scaleY(0)}
+.step{position:relative;display:grid;grid-template-columns:1fr 1fr;gap:96px;align-items:center}
+.step .num{display:flex;align-items:center;gap:16px;justify-self:end}
+.step:nth-child(odd of .step) .num{order:2;justify-self:start}
+.step .numt{width:64px;height:64px;border-radius:16px;display:grid;place-items:center;font-size:22px;background:rgb(255 255 255 / .12);border:1px solid rgb(255 255 255 / .25);transition:background-color .4s var(--ease-out),color .4s var(--ease-out),transform .4s var(--ease-out);transform:scale(.92)}
+.step.on .numt{background:var(--lime);color:var(--ink);border-color:var(--lime);transform:scale(1)}
+.step .dur{color:var(--blue-200);font-size:15px}
+.step .txt{display:grid;gap:8px;max-width:38ch}
+.step h3{font-size:28px;letter-spacing:-.03em}
+.step p{color:var(--blue-100);font-size:16px}
+.step::after{content:"";position:absolute;left:50%;top:50%;width:12px;height:12px;margin:-6px 0 0 -6px;border-radius:4px;background:var(--blue-400)}
+@media (max-width:560px){.steptrack .spine{left:31px}.step{grid-template-columns:1fr;gap:12px;padding-left:0}.step .num,.step:nth-child(odd of .step) .num{order:0;justify-self:start}.step::after{display:none}.steps{padding-inline:20px;border-radius:24px}}
+
+/* situations */
+.sit{display:grid;gap:20px;padding:12px;align-content:start}
+.sit .panel{background:var(--panel);border-radius:14px;padding:22px;display:grid;gap:8px;min-height:236px;align-content:start}
+.sit .panel .cap{font-size:14px;color:var(--slate)}
+.sit .panel .val{font-size:28px;letter-spacing:-.03em}
+.sit .chart{display:flex;align-items:flex-end;gap:6px;height:120px;margin-top:auto}
+.sit .chart i{flex:1;border-radius:4px 4px 0 0;background:var(--blue-300);transform-origin:bottom}
+.sit .body{padding:6px 20px 20px;display:grid;gap:8px}
+.sit .eyebrowless{color:var(--blue-600);font-size:15px}
+.hline{position:relative;height:120px;margin-top:auto}
+.hline .base{position:absolute;left:0;right:0;top:56px;border-top:2px solid var(--blue-200)}
+.hline .run{position:absolute;left:8%;width:70%;top:55px;height:4px;border-radius:2px;background:var(--blue-500);transform-origin:left}
+.hline .mk{position:absolute;top:48px;width:18px;height:18px;border-radius:5px;background:var(--blue-600)}
+.hline .mk.l{background:var(--lime);border:1px solid var(--ink)}
+.hline .t{position:absolute;top:80px;font-size:13px;color:var(--slate);white-space:nowrap;transform:translateX(-30%)}
+
+/* data + talk */
+.duo{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:20px}
+@media (max-width:1024px){.duo{grid-template-columns:1fr}}
+.data{background:var(--grad-deep);color:#fff;border:0;min-height:460px;display:grid;gap:20px;align-content:start}
+.data p{color:var(--blue-100);max-width:42ch}
+.data .cube{position:absolute;right:-60px;bottom:-60px;width:380px;opacity:.9;pointer-events:none}
+.data > *:not(.cube){position:relative}
+.talk{display:grid;gap:20px;align-content:start;min-height:460px}
+.talk .fig{font-size:124px;line-height:.82}
+.talk ul{margin:0;padding:0;list-style:none;display:grid}
+.talk li{display:flex;justify-content:space-between;gap:16px;padding:14px 0;border-top:1px dashed var(--dash);font-size:16px}
+.talk li span:last-child{color:var(--slate);text-align:right}
+@media (max-width:1024px){.data .cube{display:none}}
+
+/* demo card with envelope */
+.demo{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:12px;padding:12px}
+.demo .l{padding:36px;display:grid;gap:20px;align-content:center}
+.demo .r{background:var(--panel);border-radius:14px;min-height:420px;position:relative;overflow:hidden;display:grid;place-items:center;perspective:900px}
+.demo .r::before{content:"";position:absolute;inset:0;background-image:radial-gradient(circle,var(--blue-200) 1.6px,transparent 2px);background-size:18px 18px;-webkit-mask:radial-gradient(circle at 50% 50%,#000 20%,transparent 75%);mask:radial-gradient(circle at 50% 50%,#000 20%,transparent 75%)}
+.env{position:relative;width:400px;height:270px;transform-style:preserve-3d;transform:rotateZ(-3deg) rotateX(14deg) rotateY(-20deg)}
+.env .face{position:absolute;inset:0;border-radius:14px;background:linear-gradient(160deg,#2f74d0,#0a4da6);overflow:hidden;display:grid;align-content:end;padding:22px;color:#fff}
+.env .face::before{content:"";position:absolute;left:0;right:0;top:0;height:60%;background:linear-gradient(160deg,#5c9be6,#2f74d0);clip-path:polygon(0 0,100% 0,50% 100%)}
+.env .face b{position:relative;font-weight:400;font-size:22px;letter-spacing:-.02em}
+.env .face small{position:relative;color:var(--blue-100);font-size:14px}
+.env .layer{position:absolute;inset:0;border-radius:14px;background:#0a4da6}
+.env .seal{position:absolute;left:50%;top:52%;width:30px;height:30px;border-radius:8px;background:var(--lime);transform:translate(-50%,-50%) translateZ(2px)}
+@media (max-width:1024px){.env{scale:.84}}
+@media (max-width:768px){.demo{grid-template-columns:1fr}.demo .r{order:-1;min-height:240px}.env{scale:.5}.demo .l{padding:20px}}
+
+/* footer */
+.cover{position:relative;z-index:2;background:var(--mist);border-radius:0 0 32px 32px;padding-bottom:var(--sec)}
+footer{position:sticky;bottom:0;z-index:1;margin-top:-32px;padding-top:80px;background:linear-gradient(180deg,#1f63c4,#041b4a);color:#fff;overflow:hidden}
+.f-top{display:grid;grid-template-columns:1.4fr repeat(3,minmax(0,1fr));gap:32px;padding-bottom:40px}
+.f-top .tag{font-size:28px;letter-spacing:-.03em;max-width:18ch}
+.f-top h4{margin:0 0 12px;font-weight:400;font-size:14px;color:var(--blue-200)}
+.f-top ul{margin:0;padding:0;list-style:none;display:grid;gap:8px}
+.f-top a{text-decoration:none}
+.f-top a:hover{text-decoration:underline;text-underline-offset:.2em}
+.f-legal{display:flex;justify-content:space-between;gap:20px;flex-wrap:wrap;padding:24px 0;border-top:1px dashed rgb(255 255 255 / .35);font-size:14px;color:var(--blue-100)}
+@media (max-width:768px){.f-top{grid-template-columns:1fr 1fr}.f-top .tag{grid-column:1/-1}}
+.word{position:relative;display:flex;justify-content:center;font-size:clamp(120px,24vw,360px);font-weight:500;letter-spacing:-.06em;line-height:.8;color:var(--mist);overflow:hidden;padding-top:.08em;-webkit-mask:linear-gradient(180deg,#000 40%,transparent 100%);mask:linear-gradient(180deg,#000 40%,transparent 100%)}
+.word span{display:inline-block}
+
+/* cursor trail */
+canvas.trail{position:fixed;inset:0;z-index:0;pointer-events:none;width:100%;height:100%}
+.cover > section{position:relative;z-index:1}
+
+/* preloader */
+.pre{position:fixed;inset:0;z-index:100;display:none;place-items:center;background:var(--grad-hero);background-size:100% 400%}
+html[data-preloader] .pre{display:grid}
+.pre .in{display:grid;justify-items:center;gap:18px}
+.pre .cnt{font-size:44px;font-weight:300;letter-spacing:-.05em;font-variant-numeric:tabular-nums}
+.pre .cap{font-size:14px;color:var(--slate)}
+
+/* reveal starting states only with JS; content is visible without it */
+.js [data-reveal]{opacity:0;transform:translateY(48px)}
+@media (prefers-reduced-motion:reduce){*,*::before,*::after{animation-duration:.01ms!important;transition-duration:.01ms!important;scroll-behavior:auto!important}.dash{--tilt:0!important}}
+</style>
+</head>
+<body>
+<div class="pre" aria-hidden="true"><div class="in">
+  <svg width="64" height="64" viewBox="0 0 26 26"><rect class="p-bar" width="16" height="26" rx="5" fill="#06142e"/><circle class="p-lens" cx="8" cy="9" r="4" fill="#f5f8fc"/><rect class="p-top" x="18" width="8" height="12" rx="3" fill="#2f74d0"/><rect class="p-lime" x="18" y="14" width="8" height="12" rx="3" fill="#ddf545"/></svg>
+  <span class="cap">Sample profile, match against the job</span>
+  <span class="cnt"><span id="preNum">0</span>%</span>
+</div></div>
+
+<div class="bar" aria-hidden="true"><div class="wrap header">
+  <a class="logo" href="#top" tabindex="-1"><svg width="26" height="26" viewBox="0 0 26 26"><rect class="ink" width="16" height="26" rx="5" fill="#06142e"/><circle cx="8" cy="9" r="4" fill="#06142e"/><rect x="18" width="8" height="12" rx="3" fill="#5c9be6"/><rect class="lm" x="18" y="14" width="8" height="12" rx="3" fill="#ddf545"/></svg>HireLens</a>
+  <nav class="nav"><a href="#product" tabindex="-1">Product</a><a href="#how" tabindex="-1">How it works</a><a href="#talk" tabindex="-1">Pricing</a></nav>
+  <div class="header-r"><a class="btn btn--lime btn--sm" href="APP_URL" tabindex="-1">Open the app</a></div>
+</div></div>
+
+<main id="top">
+<div class="cover">
+<canvas class="trail" aria-hidden="true"></canvas>
+<section class="hero">
+  <canvas class="halftone" aria-hidden="true"></canvas>
+  <header class="wrap header">
+    <a class="logo" href="#top" aria-label="HireLens home"><svg width="26" height="26" viewBox="0 0 26 26" aria-hidden="true"><rect width="16" height="26" rx="5" fill="#06142e"/><circle cx="8" cy="9" r="4" fill="#cfe0f7"/><rect x="18" width="8" height="12" rx="3" fill="#2f74d0"/><rect class="lm" x="18" y="14" width="8" height="12" rx="3" fill="#ddf545"/></svg>HireLens</a>
+    <nav class="nav" aria-label="Main"><a href="#product">Product</a><a href="#how">How it works</a><a href="#talk">Pricing</a></nav>
+    <div class="header-r"><a class="login" href="APP_URL" style="text-decoration:none">Log in</a><a class="btn btn--sm" href="#talk">Book a demo</a></div>
+  </header>
+  <div class="wrap hero-copy">
+    <span class="pill pill--glass" data-hero><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3"><circle cx="7" cy="7" r="4.5"/><path d="m10.5 10.5 3.5 3.5"/></svg>Recruitment workspace for Indian hiring teams</span>
+    <h1 data-lines>Every resume scored before you call</h1>
+    <p class="lead" data-hero>Drop resumes on a job. See who fits before you pick up the phone.</p>
+    <div class="hero-actions" data-hero><a class="btn btn--lime" href="APP_URL">Open the app <span class="arr" aria-hidden="true">→</span></a><a class="btn" href="#how">See how it works</a></div>
+  </div>
+  <div class="wrap dash-stage">
+    <div class="dash" id="dash" aria-label="Example dashboard with sample profiles">
+      <div>
+        <span class="lbl">Top match for Senior Java Developer</span>
+        <div class="big fig"><span data-count="96">96</span><small>%</small></div>
+        <div class="who">Sample candidate A</div>
+        <span class="chip"><i></i>Shortlisted automatically at 75% and up</span>
+        <div class="rows">
+          <div><span>Relevant experience</span><span>6 yrs</span></div>
+          <div><span>Expected CTC</span><span>23 LPA of 24 budget</span></div>
+          <div><span>Notice period</span><span>30 days</span></div>
+          <div><span>Distance to Malad office</span><span>13 km</span></div>
+        </div>
+      </div>
+      <div class="dash-right">
+        <div class="dash-top"><span class="lbl">Demo workspace, sample profiles</span>
+          <div class="switch" role="group" aria-label="Show"><span class="knob" aria-hidden="true"></span><button type="button" aria-pressed="true" data-k="all">All</button><button type="button" aria-pressed="false" data-k="short">Shortlisted</button><button type="button" aria-pressed="false" data-k="l1">L1</button></div>
+        </div>
+        <div class="ranks" id="ranks"></div>
+        <div class="alloc" aria-hidden="true"><i style="flex:5;background:#fff"></i><i style="flex:2;background:var(--blue-300)"></i><i style="flex:2;background:var(--blue-500)"></i><i style="flex:1;background:var(--lime)"></i></div>
+        <div class="legend"><span><i style="background:#fff"></i>New and contacted</span><span><i style="background:var(--blue-300)"></i>L1</span><span><i style="background:var(--blue-500)"></i>L2</span><span><i style="background:var(--lime)"></i>Selected</span></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="wrap section" id="product">
+  <hr class="rule">
+  <div class="head"><span class="pill"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3"><rect x="2" y="2" width="5" height="5" rx="1.5"/><rect x="9" y="2" width="5" height="5" rx="1.5"/><rect x="2" y="9" width="5" height="5" rx="1.5"/><rect x="9" y="9" width="5" height="5" rx="1.5"/></svg>What you get</span>
+    <div class="h"><h2 data-lines>Set the job once. The shortlist builds itself.</h2></div></div>
+  <div class="bento" data-reveal>
+    <article class="card b-weights">
+      <h3>A score you can explain</h3>
+      <p>Five parts, weighed the way you set them. No black box, every percentage traces back.</p>
+      <div class="wbars" data-bars>
+        <div class="wbar"><span>Skills</span><span class="t"><i style="--v:.9"></i></span><span>40</span></div>
+        <div class="wbar"><span>Experience</span><span class="t"><i style="--v:1"></i></span><span>25</span></div>
+        <div class="wbar"><span>CTC fit</span><span class="t"><i style="--v:1"></i></span><span>15</span></div>
+        <div class="wbar"><span>Location</span><span class="t"><i style="--v:.85"></i></span><span>10</span></div>
+        <div class="wbar"><span>Notice</span><span class="t"><i style="--v:1"></i></span><span>10</span></div>
+      </div>
+      <div class="total"><span class="fig"><span data-count="96">96</span>%</span><span class="muted">sample profile</span></div>
+    </article>
+    <article class="card b-formats">
+      <h3>Any resume, any format</h3>
+      <p>PDF, Word, old .doc, plain text, even a phone photo of a printout.</p>
+      <div class="tiles" data-tiles><span class="tile">PDF</span><span class="tile">DOCX</span><span class="tile">DOC</span><span class="tile">TXT</span><span class="tile now">Photo</span><span class="tile ai">Scan</span></div>
+    </article>
+    <article class="card b-meet" id="meetCard">
+      <canvas class="flow" data-flow="recall" aria-hidden="true"></canvas>
+      <span class="dotfield" aria-hidden="true"></span>
+      <span class="pill pill--dark" style="justify-self:start">Same day</span>
+      <div class="big fig" style="font-size:96px;line-height:.85">L1</div>
+      <div class="tl"><span class="pulse" aria-hidden="true"></span>
+        <div><small>Today 11:42</small>WhatsApp sent from a template</div>
+        <div class="l"><small>Tomorrow 11:00</small>L1 on Google Meet, link in the invite</div>
+      </div>
+      <h3 style="margin-top:auto">From shortlist to interview</h3>
+      <p>Message on WhatsApp or email, schedule the Meet, and every touch lands in the remarks.</p>
+    </article>
+    <article class="card b-distance">
+      <span class="muted" style="font-size:15px">Example, Goregaon to a Malad office</span>
+      <div class="km"><span class="fig"><span data-count="13">13</span></span><span>km</span></div>
+      <p>Current and expected CTC, notice period and commute, read from the resume and kept in one tracker.</p>
+    </article>
+    <article class="card b-share">
+      <div style="display:grid;gap:8px;max-width:44ch"><h3>Post the job everywhere</h3><p>One post written for each network, plus a square image for Instagram.</p></div>
+      <div class="chips"><span class="chip-l">LinkedIn</span><span class="chip-l">Instagram</span><span class="chip-l">X</span><span class="chip-l">Facebook</span><span class="chip-l">WhatsApp</span></div>
+    </article>
+  </div>
+</section>
+
+<section class="wrap section">
+  <hr class="rule">
+  <div class="head"><span class="pill"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3"><path d="M2 4h12v8H2z"/><path d="m2 4 6 5 6-5"/></svg>Outreach</span>
+    <div class="h"><h2 data-lines>Three ways to reach a candidate, all logged.</h2><p>Templates fill in the name, the role and the interview link. Messages open ready to send, or go out straight from the app once your keys are in.</p></div></div>
+  <div class="rail">
+    <article class="card chan" data-reveal><div class="art"><canvas data-art="bubble" aria-hidden="true"></canvas></div><div class="body"><h3>WhatsApp</h3><p>First contact, details needed, interview invite.</p><div class="rowd"><span>Without keys</span><span>Opens WhatsApp</span></div><div class="rowd"><span>With Cloud API</span><span>Sends from the app</span></div></div></article>
+    <article class="card chan" data-reveal><div class="art"><canvas data-art="mail" aria-hidden="true"></canvas></div><div class="body"><h3>Email</h3><p>Same templates with a subject line, signed by the recruiter.</p><div class="rowd"><span>Without keys</span><span>Opens a Gmail draft</span></div><div class="rowd"><span>With Resend</span><span>Sends from your domain</span></div></div></article>
+    <article class="card chan" data-reveal><div class="art"><canvas data-art="cam" aria-hidden="true"></canvas></div><div class="body"><h3>Google Meet</h3><p>Pick L1 or L2, the panel is invited, the link goes into the message.</p><div class="rowd"><span>Event</span><span>Google Calendar</span></div><div class="rowd"><span>Tracker</span><span>Stage moves itself</span></div></div></article>
+  </div>
+</section>
+
+<section class="wrap section" id="how">
+  <div class="steps-stage"><div class="steps" id="steps">
+    <canvas class="flow" data-flow="left" aria-hidden="true"></canvas><canvas class="flow" data-flow="right" aria-hidden="true"></canvas>
+    <span class="dots-tl" aria-hidden="true"></span><span class="dots-br" aria-hidden="true"></span>
+    <div class="head" style="position:relative"><span class="pill pill--dark">How it works</span><div class="h"><h2 data-lines>From a pasted JD to a selected candidate.</h2></div></div>
+    <div class="steptrack" id="track"><span class="spine" aria-hidden="true"><i></i></span>
+      <div class="step"><div class="num"><span class="numt">01</span><span class="dur">5 minutes</span></div><div class="txt"><h3>Paste the JD</h3><p>The AI reads it into skills, experience, budget and notice. Or it writes one from your notes.</p></div></div>
+      <div class="step"><div class="num"><span class="numt">02</span><span class="dur">A few minutes</span></div><div class="txt"><h3>Drop the resumes</h3><p>Up to sixty at once. Each is read, scored and placed on the map.</p></div></div>
+      <div class="step"><div class="num"><span class="numt">03</span><span class="dur">Same day</span></div><div class="txt"><h3>Call the top of the list</h3><p>Shortlisted profiles are marked. Message, call, log the remark.</p></div></div>
+      <div class="step"><div class="num"><span class="numt">04</span><span class="dur">Tracked</span></div><div class="txt"><h3>L1, L2, selected</h3><p>Drag through the pipeline. The dashboard counts by technology and level.</p></div></div>
+    </div>
+  </div></div>
+</section>
+
+<section class="wrap section">
+  <hr class="rule">
+  <div class="head"><span class="pill"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3"><circle cx="8" cy="8" r="6"/><path d="M8 5v3l2 2"/></svg>When it helps</span>
+    <div class="h"><h2 data-lines>The three hiring weeks we hear about most.</h2></div></div>
+  <div class="rail">
+    <article class="card sit" data-reveal><div class="panel"><span class="cap">Example, one role</span><span class="val">Hundreds of resumes</span><div class="chart" data-bars aria-hidden="true"><i style="height:100%;background:var(--blue-600)"></i><i style="height:82%;background:var(--blue-500)"></i><i style="height:64%;background:var(--blue-400)"></i><i style="height:46%"></i><i style="height:30%;background:var(--blue-200)"></i><i style="height:18%;background:var(--blue-100)"></i></div></div><div class="body"><span class="eyebrowless">Bulk drive</span><h3>The job portal sent everyone</h3><p>Ranked by fit in minutes, so the first calls go to the right people.</p></div></article>
+    <article class="card sit" data-reveal><div class="panel"><span class="cap">Example, rare skill</span><span class="val">Three that fit</span><div class="chart" data-bars aria-hidden="true"><i style="height:20%;background:var(--blue-200)"></i><i style="height:28%;background:var(--blue-200)"></i><i style="height:94%;background:var(--blue-600)"></i><i style="height:22%;background:var(--blue-200)"></i><i style="height:88%;background:var(--blue-600)"></i><i style="height:18%;background:var(--blue-200)"></i><i style="height:30%;background:var(--blue-200)"></i><i style="height:91%;background:var(--blue-600)"></i><i style="height:24%;background:var(--blue-200)"></i></div></div><div class="body"><span class="eyebrowless">Niche role</span><h3>One ideal profile, more like them</h3><p>The shortlist becomes an ideal candidate, and the next-closest profiles surface.</p></div></article>
+    <article class="card sit" data-reveal><div class="panel"><span class="cap">Example, mid-search</span><span class="val">Requirement changed</span><div class="hline" aria-hidden="true"><span class="base"></span><span class="run" data-run></span><span class="mk" style="left:6%"></span><span class="mk" style="left:44%"></span><span class="mk l" style="left:76%"></span><span class="t" style="left:6%">Call</span><span class="t" style="left:44%">Summary</span><span class="t" style="left:76%">Re-scored</span></div></div><div class="body"><span class="eyebrowless">Calibration call</span><h3>The manager wants something else</h3><p>Notes become a requirement in English, Hindi or Marathi, and every profile re-scores.</p></div></article>
+  </div>
+</section>
+
+<section class="wrap section" id="talk">
+  <div class="duo" id="duo">
+    <article class="card data" data-reveal>
+      <span class="pill pill--dark" style="justify-self:start">Your data</span>
+      <h3 style="font-size:44px">Resumes stay in your own database</h3>
+      <p>API keys live in your admin panel, not in our code. Candidate data stays in the database you choose, and you can export everything as a backup any time.</p>
+      <div><a class="btn btn--white btn--sm" href="APP_URL">Open the admin panel</a></div>
+      <svg class="cube" viewBox="0 0 380 380" aria-hidden="true"><g fill="none" stroke="rgb(255 255 255 / .35)"><path d="M190 40 340 125 190 210 40 125Z" fill="rgb(92 155 230 / .45)"/><path d="M40 125v170l150 85V210Z" fill="rgb(10 77 166 / .6)"/><path d="M340 125v170l-150 85V210Z" fill="rgb(47 116 208 / .55)"/><path d="M115 82 265 167M265 82 115 167M190 40v170" opacity=".6"/></g><path id="lid" d="M190 92 238 120 190 148 142 120Z" fill="#fff"/></svg>
+    </article>
+    <article class="card talk" data-reveal>
+      <span class="pill" style="justify-self:start">Pricing</span>
+      <h3 style="font-size:44px">Priced for your team, not per seat</h3>
+      <p style="font-size:19px">A quote for your recruiters and integrations, built and run by AlphacodeAI in Mumbai.</p>
+      <ul><li><span>WhatsApp, email, Meet</span><span>Included</span></li><li><span>AI resume reading</span><span>Your model, your key</span></li><li><span>Your branding</span><span>Included</span></li></ul>
+      <div><a class="btn btn--lime" href="https://alphacodeai.com">Talk to AlphacodeAI <span class="arr" aria-hidden="true">→</span></a></div>
+    </article>
+  </div>
+</section>
+
+<section class="wrap section">
+  <article class="card demo" data-reveal>
+    <div class="l">
+      <span class="pill" style="justify-self:start">Demo workspace</span>
+      <h3 style="font-size:44px">Try it with your own JD</h3>
+      <p class="muted" style="font-size:17px">Open the app, add sample data or paste a real job, and drop in a few resumes. Nothing to install.</p>
+      <div class="hero-actions" style="justify-content:start"><a class="btn btn--lime" href="APP_URL">Open the app <span class="arr" aria-hidden="true">→</span></a></div>
+    </div>
+    <div class="r" id="envStage"><div class="env" id="env"><span class="layer" style="transform:translateZ(-4px)"></span><span class="layer" style="transform:translateZ(-8px);opacity:.8"></span><span class="layer" style="transform:translateZ(-12px);opacity:.6"></span><div class="face"><b>Interview invite</b><small>From your hiring desk to the candidate</small></div><span class="seal"></span></div></div>
+  </article>
+</section>
+</div>
+
+<footer>
+  <div class="wrap">
+    <div class="f-top">
+      <p class="tag">Every resume scored before you call.</p>
+      <div><h4>Product</h4><ul><li><a href="#product">What you get</a></li><li><a href="#how">How it works</a></li><li><a href="APP_URL">Open the app</a></li><li><a href="ADMIN_URL">Admin</a></li></ul></div>
+      <div><h4>Company</h4><ul><li><a href="https://alphacodeai.com">AlphacodeAI</a></li><li><a href="#talk">Pricing</a></li></ul></div>
+      <div><h4>Built with</h4><ul><li>WhatsApp Cloud API</li><li>Google Calendar and Meet</li><li>Your choice of AI model</li></ul></div>
+    </div>
+    <div class="f-legal"><span>© 2026 AlphacodeAI Private Limited, Mumbai</span><a href="#top" style="text-decoration:none">Back to top <span aria-hidden="true">↑</span></a></div>
+  </div>
+  <div class="word" aria-hidden="true" id="word"></div>
+</footer>
+</main>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.13.0/gsap.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.13.0/ScrollTrigger.min.js"></script>
+<script>
+(() => {
+const html = document.documentElement
+const REDUCED = matchMedia('(prefers-reduced-motion: reduce)').matches
+const FINE = matchMedia('(hover: hover) and (pointer: fine) and (min-width: 1025px)').matches
+const $ = (s, r = document) => r.querySelector(s), $$ = (s, r = document) => [...r.querySelectorAll(s)]
+const clamp01 = (v) => v < 0 ? 0 : v > 1 ? 1 : v
+const smooth = (v) => { const t = clamp01(v); return t * t * (3 - 2 * t) }
+const perFrame = (k, dt) => 1 - Math.pow(1 - k, Math.max(0, dt) * 60)
+const hash = (n) => { const s = Math.sin(n * 127.1 + 311.7) * 43758.5453; return s - Math.floor(s) }
+const onScreen = (el, fn) => { const io = new IntersectionObserver(([e]) => fn(e.isIntersecting), { rootMargin: '25% 0px' }); io.observe(el) }
+const loop = (el, draw) => { let raf = 0, last = 0, t = 0; const tick = (now) => { const dt = last ? Math.min(.1, (now - last) / 1000) : 0; last = now; t += dt; draw(t, dt); raf = requestAnimationFrame(tick) }; onScreen(el, (on) => { if (on && !raf) { last = 0; raf = requestAnimationFrame(tick) } else if (!on && raf) { cancelAnimationFrame(raf); raf = 0 } }) }
+
+// ---------- footer wordmark letters ----------
+$('#word').innerHTML = [...'HireLens'].map((c) => `<span>${c}</span>`).join('')
+
+// ---------- demo ranks + range switch ----------
+const DATA = {
+  all: [['Sample candidate A', 'Backend engineer, 6 yrs', 96], ['Sample candidate D', 'Java developer, 5 yrs', 95], ['Sample candidate B', 'Software engineer, 3.5 yrs', 68], ['Sample candidate C', 'Lead developer, 8 yrs', 63]],
+  short: [['Sample candidate A', 'Backend engineer, 6 yrs', 96], ['Sample candidate D', 'Java developer, 5 yrs', 95], ['Sample candidate F', 'Frontend developer, 3 yrs', 95]],
+  l1: [['Sample candidate B', 'Software engineer, 3.5 yrs', 68], ['Sample candidate F', 'Frontend developer, 3 yrs', 95]],
+}
+const ranks = $('#ranks')
+const paint = (k, animate) => {
+  ranks.innerHTML = DATA[k].map(([n, m, v], i) => `<div class="rank${v >= 90 ? ' top' : ''}"><div><b>${n}</b><div class="meta">${m}</div></div><span class="track"><i style="--v:${v / 100}"></i></span><span class="pct fig">${v}%</span></div>`).join('')
+  if (animate && !REDUCED) gsap.from($$('.track i', ranks), { scaleX: 0, duration: 1, ease: 'power3.out', stagger: .08 })
+}
+paint('all', false)
+const sw = $('.switch'), knob = $('.knob', sw)
+const place = (b) => { knob.style.width = b.offsetWidth + 'px'; knob.style.transform = `translateX(${b.offsetLeft - 4}px)` }
+$$('button', sw).forEach((b) => b.addEventListener('click', () => { $$('button', sw).forEach((x) => x.setAttribute('aria-pressed', x === b)); place(b); paint(b.dataset.k, true) }))
+requestAnimationFrame(() => place($('button[aria-pressed="true"]', sw)))
+addEventListener('resize', () => place($('button[aria-pressed="true"]', sw)))
+
+// ---------- header bar ----------
+const bar = $('.bar'), hero = $('.hero')
+addEventListener('scroll', () => { const on = scrollY > hero.offsetHeight - 80; bar.classList.toggle('on', on); bar.setAttribute('aria-hidden', !on); $$('a', bar).forEach((a) => a.tabIndex = on ? 0 : -1) }, { passive: true })
+
+// ---------- hero halftone (GetLayers Kelder halftone, redrawn in navy on the light hero) ----------
+;(() => {
+  const canvas = $('canvas.halftone'), ctx = canvas.getContext('2d')
+  const LENS = 130, RIPPLE_SPEED = 520, RIPPLE_WIDTH = 36, RIPPLE_LIFE = 1.5, PULSE_SPEED = 150, PULSE_SPACING = 280, PULSE_FALLOFF = 1100, PULSE_Y = .34
+  let W = 0, H = 0, dpr = 1, dots = null, pointer = null, ripples = [], now = 0
+  const build = () => {
+    W = canvas.offsetWidth; H = canvas.offsetHeight; dpr = Math.min(2, devicePixelRatio || 1)
+    canvas.width = W * dpr; canvas.height = H * dpr
+    const P = 22, cx = W / 2, cy = H * PULSE_Y, xs = [], ys = [], rs = [], os = []
+    for (let y = P / 2; y < H; y += P) for (let x = P / 2; x < W; x += P) {
+      const d = Math.hypot(x - cx, (y - cy) * 1.25), ring = Math.exp(-(((d - Math.min(W, 1440) * .44) / 150) ** 2))
+      const fade = clamp01(1 - (y - H * .45) / (H * .3))
+      const v = ring * fade
+      if (v < .1) continue
+      xs.push(x); ys.push(y); rs.push(.5 + 3.2 * v); os.push(.06 + .42 * v)
+    }
+    const n = xs.length
+    dots = { x: Float32Array.from(xs), y: Float32Array.from(ys), r: Float32Array.from(rs), o: Float32Array.from(os), s: new Float32Array(n).fill(1), b: new Float32Array(n), l: new Float32Array(n), px: new Float32Array(n), py: new Float32Array(n) }
+  }
+  const draw = (t, dt) => {
+    now = t; if (!dots) return
+    const { x, y, r, o, s, b, l, px, py } = dots, k = perFrame(.16, dt), cx = W / 2, cy = H * PULSE_Y
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0); ctx.clearRect(0, 0, W, H)
+    ripples = ripples.filter((rp) => now - rp.t < RIPPLE_LIFE)
+    for (let i = 0; i < x.length; i++) {
+      const shimmer = .9 + .1 * Math.sin(now * .8 - x[i] * .006 - y[i] * .004)
+      let tS = 1, tB = 0, tL = 0, tx = 0, ty = 0
+      const dx = x[i] - cx, dy = y[i] - cy, dist = Math.hypot(dx, dy), ang = Math.atan2(dy, dx)
+      const wob = 16 * Math.sin(ang * 3 + now * .6) + 9 * Math.sin(ang * 5 - now * .9)
+      const ph = ((dist + wob - now * PULSE_SPEED) / PULSE_SPACING) * Math.PI * 2
+      const crest = Math.pow((Math.cos(ph) + 1) / 2, 10), echo = Math.pow((Math.cos(ph + .9) + 1) / 2, 14)
+      const bb = Math.min(1, (crest + .4 * echo) * (.35 + .65 * Math.max(0, 1 - dist / PULSE_FALLOFF)))
+      tS += .9 * bb; tB += .4 * bb
+      if (pointer) { const ddx = x[i] - pointer.x, ddy = y[i] - pointer.y, d = Math.hypot(ddx, ddy); if (d < LENS * 2) { const f = Math.exp(-((d / LENS) ** 2)); tS += 1.1 * f; tB += .4 * f; tL = f > .72 ? (f - .72) / .28 : 0; const push = 7 * f / Math.max(d, 1); tx = ddx * push; ty = ddy * push } }
+      for (const rp of ripples) { const age = now - rp.t, d = Math.hypot(x[i] - rp.x, y[i] - rp.y), band = Math.exp(-(((d - age * RIPPLE_SPEED) / RIPPLE_WIDTH) ** 2)) * (1 - age / RIPPLE_LIFE); tS += 1.3 * band; tB += .5 * band; if (band > .6) tL = Math.max(tL, (band - .6) / .4) }
+      s[i] += (tS - s[i]) * k; b[i] += (tB - b[i]) * k; l[i] += (tL - l[i]) * k; px[i] += (tx - px[i]) * k; py[i] += (ty - py[i]) * k
+      const a = Math.min(1, o[i] * shimmer + b[i] * Math.max(o[i] * 2.2, .25)); if (a < .01) continue
+      ctx.globalAlpha = a; ctx.fillStyle = l[i] > .5 ? '#0a4da6' : '#2f74d0'
+      ctx.beginPath(); ctx.arc(x[i] + px[i], y[i] + py[i], r[i] * s[i], 0, Math.PI * 2); ctx.fill()
+    }
+    ctx.globalAlpha = 1
+  }
+  build(); new ResizeObserver(build).observe(canvas)
+  const local = (e) => { const r = canvas.getBoundingClientRect(); return { x: e.clientX - r.left, y: e.clientY - r.top } }
+  if (FINE) { hero.addEventListener('pointermove', (e) => pointer = local(e)); hero.addEventListener('pointerleave', () => pointer = null) }
+  hero.addEventListener('pointerdown', (e) => { if (!e.target.closest('a,button')) ripples.push({ ...local(e), t: now }) })
+  if (REDUCED) { draw(0, 0); return }
+  loop(hero, draw)
+})()
+
+// ---------- line flows (GetLayers Kelder silk ribbons, verbatim maths) ----------
+const FLOWS = {
+  recall: { spine: [[.76, 0, -.04, 0], [.66, 0, .28, 0], [.8, 0, .5, 0], [1.18, 0, .68, 0]], spread: { from: .06, to: .32, unit: 'w' }, twist: .83, fan: 0, strands: 30 },
+  left: { spine: [[0, 18.7, 0, -1.5], [0, 17.1, 0, 4.8], [0, 9.2, 0, 13.2], [0, 5.5, 0, 23.3], [0, 8.5, 0, 37.4], [0, 5.2, 0, 48.5], [0, -.5, 0, 57.3], [0, -3, 0, 62]], spread: { from: 1.4, to: 5.5, unit: 'rem' }, twist: 3.5, fan: 0, strands: 22 },
+  right: { spine: [[1, .5, 0, 20.5], [1, -3.9, 0, 33.9], [1, -4.8, 0, 38.3], [1, -7.9, 0, 44.9], [1, -12.7, 0, 50.2], [1, -15.2, 0, 57.3], [1, -15.5, 0, 62]], spread: { from: 1.6, to: 5, unit: 'rem' }, twist: 1.6, fan: .9, strands: 22 },
+}
+const COLORS = ['#bfd6f6', '#8dbaf0', '#5c9be6']
+$$('canvas.flow').forEach((canvas) => {
+  const { spine, spread, twist, fan, strands: count } = FLOWS[canvas.dataset.flow]
+  if (canvas.dataset.flow !== 'recall' && innerWidth <= 560) return
+  const ctx = canvas.getContext('2d'), n = spine.length, P = new Float32Array(n * 2), SAMPLES = Math.max(56, (n - 1) * 28), pts = new Float32Array(SAMPLES * 2)
+  let w = 0, h = 0, dpr = 1, rem = 16
+  const at = (t, i) => { const f = clamp01(t) * (n - 1), seg = Math.min(n - 2, Math.floor(f)), u = f - seg, p1 = P[seg * 2 + i], p2 = P[(seg + 1) * 2 + i], p0 = seg > 0 ? P[(seg - 1) * 2 + i] : 2 * p1 - p2, p3 = seg < n - 2 ? P[(seg + 2) * 2 + i] : 2 * p2 - p1; return .5 * (2 * p1 + (p2 - p0) * u + (2 * p0 - 5 * p1 + 4 * p2 - p3) * u * u + (3 * p1 - p0 - 3 * p2 + p3) * u * u * u) }
+  const width = (t) => (spread.from + (spread.to - spread.from) * t) * (spread.unit === 'w' ? w : rem)
+  const rip = (t) => (.35 + .55 * t) * rem
+  const strands = Array.from({ length: count }, (_, j) => ({ u: j / (count - 1) - .5, c: j % 7 === 3 ? 0 : j % 3 === 0 ? 1 : 2, a: j % 7 === 3 ? .85 : .24 + .24 * hash(j), ph: hash(j + 50) * Math.PI * 2, lw: j % 7 === 3 ? 1.1 : .8 }))
+  const pulses = Array.from({ length: 3 }, (_, k) => ({ s: Math.floor(((k + .5) * count) / 3), p: hash(k + 90), v: .22 + .08 * hash(k + 9) }))
+  const layout = () => { w = canvas.offsetWidth; h = canvas.offsetHeight; dpr = Math.min(2, devicePixelRatio || 1); canvas.width = w * dpr; canvas.height = h * dpr; rem = 16 * (innerWidth <= 1024 ? .9 : 1) * (canvas.dataset.flow === 'recall' ? 1 : Math.max(.7, h / 1000)); spine.forEach(([sx, rx, sy, ry], i) => { P[i * 2] = sx * w + rx * rem; P[i * 2 + 1] = sy * h + ry * rem }) }
+  const trace = (s, now) => { for (let k = 0; k < SAMPLES; k++) { const t = k / (SAMPLES - 1), x = at(t, 0), y = at(t, 1), d = .001, tx = at(Math.min(1, t + d), 0) - at(Math.max(0, t - d), 0), ty = at(Math.min(1, t + d), 1) - at(Math.max(0, t - d), 1), len = Math.hypot(tx, ty) || 1, turn = Math.cos(t * twist * Math.PI - now * .35 + s.u * fan * Math.PI), off = width(t) * s.u * turn + rip(t) * Math.sin(t * 7 + now * .9 + s.ph); pts[k * 2] = x + (-ty / len) * off; pts[k * 2 + 1] = y + (tx / len) * off } }
+  const stroke = (a = 0, b = SAMPLES - 1) => { ctx.beginPath(); ctx.moveTo(pts[a * 2], pts[a * 2 + 1]); for (let k = a + 1; k <= b; k++) ctx.quadraticCurveTo(pts[(k - 1) * 2], pts[(k - 1) * 2 + 1], (pts[(k - 1) * 2] + pts[k * 2]) / 2, (pts[(k - 1) * 2 + 1] + pts[k * 2 + 1]) / 2); ctx.lineTo(pts[b * 2], pts[b * 2 + 1]); ctx.stroke() }
+  const draw = (now, dt) => {
+    ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.clearRect(0, 0, canvas.width, canvas.height); ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
+    ctx.globalCompositeOperation = 'lighter'; ctx.lineCap = 'round'
+    for (const s of strands) { trace(s, now); ctx.strokeStyle = COLORS[s.c]; if (s.c === 0) { ctx.globalAlpha = .1; ctx.lineWidth = 5; stroke() } ctx.globalAlpha = s.a; ctx.lineWidth = s.lw; stroke() }
+    ctx.lineWidth = 1.5
+    for (const p of pulses) { p.p = (p.p + p.v * dt) % 1.25; trace(strands[p.s], now); ctx.strokeStyle = COLORS[0]; const head = Math.round(p.p * (SAMPLES - 1)); for (let k = 1; k <= 8; k++) { const lo = head - k, hi = head - k + 1; if (hi < 1 || lo > SAMPLES - 2) continue; ctx.globalAlpha = .6 * (1 - k / 9); stroke(Math.max(0, lo), Math.min(SAMPLES - 1, hi)) } }
+    ctx.globalAlpha = 1; ctx.globalCompositeOperation = 'source-over'
+  }
+  layout(); draw(0, 0); new ResizeObserver(() => { layout(); draw(0, 0) }).observe(canvas)
+  if (!REDUCED) loop(canvas, draw)
+})
+
+// ---------- channel pixel art: pictures grow out of a dot grid ----------
+const ART = {
+  bubble: (c, r) => { const dx = (c - 15.5) / 11, dy = (r - 9) / 7; return (dx * dx + dy * dy < 1) || (r >= 14 && r <= 18 && c >= 7 && c <= 9 + (18 - r)) },
+  mail: (c, r) => (c >= 5 && c <= 26 && r >= 4 && r <= 17) && (r === 4 || r === 17 || c === 5 || c === 26 || Math.abs((10.5 - Math.abs(c - 15.5)) * .62 - (r - 4)) < .75),
+  cam: (c, r) => (c >= 4 && c <= 20 && r >= 5 && r <= 16) || (c >= 21 && c <= 27 && r >= 7 + Math.max(0, 27 - c) * .3 && r <= 14 - Math.max(0, 27 - c) * .3),
+}
+$$('canvas[data-art]').forEach((cv) => {
+  const ctx = cv.getContext('2d'), fn = ART[cv.dataset.art], COLS = 32, ROWS = 22
+  let w = 0, h = 0, dpr = 1, prog = REDUCED ? 1 : 0
+  const order = []
+  for (let r = 0; r < ROWS; r++) for (let c = 0; c < COLS; c++) if (fn(c, r)) order.push({ c, r, d: cv.dataset.art === 'cam' ? hash(c * 31 + r) : Math.atan2(r - 11, c - 16) + Math.PI + (cv.dataset.art === 'mail' ? hash(c + r * 7) * .6 : 0) })
+  const max = Math.max(...order.map((o) => o.d)); order.forEach((o) => o.d /= max)
+  const size = () => { w = cv.offsetWidth; h = cv.offsetHeight; dpr = Math.min(2, devicePixelRatio || 1); cv.width = w * dpr; cv.height = h * dpr; draw() }
+  const draw = () => {
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0); ctx.clearRect(0, 0, w, h)
+    const pitch = Math.min(w / COLS, h / ROWS), ox = (w - pitch * (COLS - 1)) / 2, oy = (h - pitch * (ROWS - 1)) / 2
+    ctx.fillStyle = '#fff'
+    for (let r = 0; r < ROWS; r++) for (let c = 0; c < COLS; c++) { ctx.globalAlpha = .4; ctx.beginPath(); ctx.arc(ox + c * pitch, oy + r * pitch, 1, 0, 7); ctx.fill() }
+    for (const o of order) { const t = smooth((prog - o.d * .6) / .4); if (t <= 0) continue; ctx.globalAlpha = .4 + .6 * t; ctx.beginPath(); ctx.arc(ox + o.c * pitch, oy + o.r * pitch, 1 + (pitch * .36 - 1) * t, 0, 7); ctx.fill() }
+    ctx.globalAlpha = 1
+  }
+  size(); new ResizeObserver(size).observe(cv)
+  if (!REDUCED) { const st = { p: 0 }; ScrollTrigger.create({ trigger: cv, start: 'top 85%', once: true, onEnter: () => gsap.to(st, { p: 1, duration: 1.4, delay: .25, ease: 'power2.inOut', onUpdate: () => { prog = st.p; draw() } }) }) }
+})
+
+// ---------- cursor trail on the mist ----------
+if (FINE && !REDUCED) {
+  const cv = $('canvas.trail'), ctx = cv.getContext('2d'), PITCH = 20, trail = []
+  let dpr = 1
+  const size = () => { dpr = Math.min(2, devicePixelRatio || 1); cv.width = innerWidth * dpr; cv.height = innerHeight * dpr }
+  size(); addEventListener('resize', size)
+  addEventListener('pointermove', (e) => trail.push({ x: e.clientX, y: e.clientY, t: performance.now() }), { passive: true })
+  const tick = () => {
+    const now = performance.now(); while (trail.length && now - trail[0].t > 800) trail.shift()
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0); ctx.clearRect(0, 0, innerWidth, innerHeight)
+    const seen = new Set()
+    for (let i = trail.length - 1; i >= 0; i--) {
+      const p = trail[i], age = (now - p.t) / 800, rad = (1 - age) * 2.2
+      for (let gx = -rad; gx <= rad; gx++) for (let gy = -rad; gy <= rad; gy++) {
+        const cx = Math.round(p.x / PITCH + gx), cy = Math.round(p.y / PITCH + gy), key = cx + ':' + cy
+        if (seen.has(key) || Math.hypot(gx, gy) > rad) continue; seen.add(key)
+        ctx.globalAlpha = .4 * (1 - age) * (1 - Math.hypot(gx, gy) / (rad + 1)); ctx.fillStyle = '#5c9be6'
+        ctx.beginPath(); ctx.arc(cx * PITCH, cy * PITCH, 2, 0, 7); ctx.fill()
+      }
+    }
+    requestAnimationFrame(tick)
+  }
+  tick()
+}
+
+// ---------- GSAP choreography ----------
+if (REDUCED || !window.gsap) { html.removeAttribute('data-preloader'); html.classList.remove('js'); return }
+gsap.registerPlugin(ScrollTrigger)
+
+// lines rise from masks
+const splitLines = (el) => {
+  const words = el.textContent.trim().split(/\s+/)
+  el.innerHTML = words.map((w) => `<span style="display:inline-block;overflow:hidden;vertical-align:top;padding-bottom:.08em;margin-bottom:-.08em"><span class="w" style="display:inline-block">${w}</span></span>`).join(' ')
+  return $$('.w', el)
+}
+$$('[data-lines]').forEach((el) => {
+  const ws = splitLines(el)
+  gsap.set(ws, { yPercent: 140 })
+  const isHero = !!el.closest('.hero')
+  const play = () => gsap.to(ws, { yPercent: 0, duration: 1.1, ease: 'expo.out', stagger: .045, delay: isHero ? .06 : 0 })
+  if (isHero) el._play = play
+  else ScrollTrigger.create({ trigger: el, start: 'top 85%', once: true, onEnter: play })
+})
+
+// reveals
+ScrollTrigger.batch('[data-reveal]', { start: 'top 88%', once: true, onEnter: (els) => gsap.to(els, { opacity: 1, y: 0, duration: 1, ease: 'power3.out', stagger: .09 }) })
+
+// counters roll from 55%
+$$('[data-count]').forEach((el) => {
+  const to = +el.dataset.count, o = { v: to * .55 }
+  el.textContent = Math.round(o.v)
+  ScrollTrigger.create({ trigger: el, start: 'top 90%', once: true, onEnter: () => gsap.to(o, { v: to, duration: 1.1, ease: 'power3.out', onUpdate: () => el.textContent = Math.round(o.v) }) })
+})
+
+// bars + tiles
+$$('[data-bars]').forEach((box) => {
+  const bars = $$('i', box), horiz = box.classList.contains('wbars')
+  const end = bars.map((el) => horiz ? +getComputedStyle(el).getPropertyValue('--v') || 1 : 1)
+  gsap.set(bars, horiz ? { scaleX: 0, transformOrigin: '0 50%' } : { scaleY: 0, transformOrigin: '50% 100%' })
+  ScrollTrigger.create({ trigger: box, start: 'top 85%', once: true, onEnter: () => gsap.to(bars, horiz ? { scaleX: (i) => end[i], duration: .9, ease: 'power3.out', stagger: .08 } : { scaleY: 1, duration: .9, ease: 'power3.out', stagger: .08 }) })
+})
+gsap.set('[data-tiles] .tile', { y: 12, opacity: 0 })
+ScrollTrigger.create({ trigger: '[data-tiles]', start: 'top 85%', once: true, onEnter: () => gsap.to('[data-tiles] .tile', { y: 0, opacity: 1, duration: .6, ease: 'power3.out', stagger: .07, delay: .1 }) })
+gsap.set('[data-run]', { scaleX: 0 })
+ScrollTrigger.create({ trigger: '[data-run]', start: 'top 85%', once: true, onEnter: () => gsap.to('[data-run]', { scaleX: 1, duration: 1.2, ease: 'power3.inOut' }) })
+
+// the meet card: a lime pulse runs down the dashed line
+const pulse = () => gsap.fromTo('.tl .pulse', { y: 0, opacity: 1 }, { y: () => $('.tl').offsetHeight - 16, duration: 1.1, ease: 'power2.inOut', onComplete: () => gsap.to('.tl .pulse', { opacity: 0, duration: .3 }) })
+ScrollTrigger.create({ trigger: '#meetCard', start: 'top 70%', once: true, onEnter: () => gsap.delayedCall(.45, pulse) })
+if (FINE) $('#meetCard').addEventListener('pointerenter', pulse)
+
+// dashboard tilt flattens with the scroll
+const dash = $('#dash')
+ScrollTrigger.create({ trigger: dash, start: 'top bottom', end: 'center center', scrub: .6, onUpdate: (s) => dash.style.setProperty('--tilt', (1 - smooth(s.progress)).toFixed(4)) })
+gsap.to('.halftone', { y: () => innerHeight * .12, ease: 'none', scrollTrigger: { trigger: '.hero', start: 'top top', end: 'bottom top', scrub: true } })
+
+// open-up: the dark block and the duo flatten from a tilt
+;[['#steps', 32], ['#duo', 0]].forEach(([sel]) => {
+  const el = $(sel)
+  gsap.fromTo(el, { rotationX: 20, scale: .9, transformOrigin: '50% 0', transformPerspective: 1000 }, { rotationX: 0, scale: 1, ease: 'none', scrollTrigger: { trigger: el, start: 'top bottom', end: 'top 30%', scrub: true } })
+})
+
+// steps timeline: the front lights each tile
+const track = $('#track'), stepsEls = $$('.step', track)
+ScrollTrigger.create({ trigger: track, start: 'top center', end: 'bottom center', scrub: .4,
+  onUpdate: (s) => { $('.spine i', track).style.transform = `scaleY(${s.progress})`; const front = s.progress * (stepsEls.length - .4); stepsEls.forEach((st, i) => st.classList.toggle('on', front >= i)) } })
+
+// security lid lifts every 3.2s while on screen
+const lid = $('#lid')
+const lidTl = gsap.timeline({ repeat: -1, repeatDelay: 2.2, paused: true }).to(lid, { y: -10, duration: .5, ease: 'power2.out' }).to(lid, { y: 0, duration: .5, ease: 'power2.in' })
+ScrollTrigger.create({ trigger: '.data', onToggle: (s) => s.isActive ? lidTl.play() : lidTl.pause() })
+
+// envelope turns toward the pointer
+if (FINE) {
+  const env = $('#env'), stage = $('#envStage').closest('section')
+  const rx = gsap.quickTo(env, 'rotationX', { duration: .8, ease: 'power3.out' }), ry = gsap.quickTo(env, 'rotationY', { duration: .8, ease: 'power3.out' })
+  gsap.set(env, { rotationX: 14, rotationY: -20, rotationZ: -3 })
+  stage.addEventListener('pointermove', (e) => { const r = env.getBoundingClientRect(), dx = (e.clientX - (r.left + r.width / 2)) / 520, dy = (e.clientY - (r.top + r.height / 2)) / 520; ry(Math.max(-1, Math.min(1, dx)) * 28); rx(Math.max(-1, Math.min(1, -dy)) * 20) })
+  stage.addEventListener('pointerleave', () => { rx(14); ry(-20) })
+}
+
+// footer wordmark letters rise as the footer is uncovered
+const letters = $$('#word span')
+gsap.set(letters, { yPercent: 100 })
+gsap.to(letters, { yPercent: 0, ease: 'none', stagger: .08, scrollTrigger: { trigger: 'footer', start: 'top bottom', end: 'bottom bottom', scrub: .5 } })
+
+// preloader: the mark builds over a count, then the hero plays
+const heroIn = () => {
+  gsap.from('[data-hero]', { y: 12, opacity: 0, duration: .9, ease: 'power3.out', stagger: .12, delay: .1 })
+  $('.hero h1')._play?.()
+  gsap.from('.dash-stage', { y: 40, scale: .98, opacity: 0, duration: 1.2, ease: 'power3.out', delay: .6 })
+  paint('all', true)
+}
+if (html.hasAttribute('data-preloader')) {
+  const pre = $('.pre'), num = $('#preNum'), cnt = { v: 0 }
+  gsap.set('.p-bar', { scaleY: 0, transformOrigin: '50% 100%' }); gsap.set('.p-top', { x: -12, opacity: 0 }); gsap.set('.p-lime', { y: -9, opacity: 0 }); gsap.set('.p-lens', { scale: 0, transformOrigin: '8px 9px' })
+  let done = false
+  const finish = (fast) => { if (done) return; done = true; gsap.to(pre, { opacity: 0, duration: fast ? .3 : .6, ease: 'power2.out', onComplete: () => { html.removeAttribute('data-preloader'); pre.remove(); ScrollTrigger.refresh() } }); heroIn() }
+  const tl = gsap.timeline({ onComplete: () => gsap.delayedCall(.18, () => finish(false)) })
+  tl.to('.p-bar', { scaleY: 1, duration: .52, ease: 'power3.out' }, .08)
+    .to('.p-lens', { scale: 1, duration: .4, ease: 'back.out(2)' }, .4)
+    .to('.p-top', { x: 0, opacity: 1, duration: .5, ease: 'power3.out' }, .52)
+    .to('.p-lime', { y: 0, opacity: 1, duration: .5, ease: 'power3.out' }, .86)
+    .to(cnt, { v: 96, duration: 1.2, ease: 'power3.out', onUpdate: () => num.textContent = Math.round(cnt.v) }, 0)
+  ;['click', 'keydown', 'wheel', 'touchstart'].forEach((ev) => addEventListener(ev, () => finish(true), { once: true, passive: true }))
+} else heroIn()
+})()
+</script>
+</body>
+</html>

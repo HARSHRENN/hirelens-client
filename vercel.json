@@ -1,0 +1,12 @@
+{
+  "framework": null,
+  "installCommand": "npm install",
+  "buildCommand": "npm run build",
+  "outputDirectory": "out",
+  "functions": { "api/*.js": { "maxDuration": 60 } },
+  "rewrites": [
+    { "source": "/admin", "destination": "/app/index.html" },
+    { "source": "/app/:path((?!assets/).*)", "destination": "/app/index.html" }
+  ],
+  "headers": [{ "source": "/api/(.*)", "headers": [{ "key": "Cache-Control", "value": "no-store" }] }]
+}
