@@ -94,7 +94,9 @@ export function scoreCandidate(c: Pick<Candidate, 'skills' | 'relevantExp' | 'to
   const notice = n == null ? 0.5 : n <= job.noticeMaxDays ? 1 : clamp(job.noticeMaxDays / n)
 
   const breakdown = { skills, experience, location, ctc, notice }
-  const score = Math.round((w.skills * skills + w.experience * experience + w.location * location + w.ctc * ctc + w.notice * notice) * 100)
+  // missing most must-haves caps the score: a cheap, nearby, available profile without the core skills is still a weak match
+  const gate = mustPart < 0.5 ? 0.5 + mustPart : 1
+  const score = Math.round((w.skills * skills + w.experience * experience + w.location * location + w.ctc * ctc + w.notice * notice) * gate * 100)
   const missing = job.mustSkills.filter((s) => !hit(s))
   return { score, breakdown, matchedSkills: [...mustHit, ...niceHit], missingSkills: missing }
 }

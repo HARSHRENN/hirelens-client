@@ -61,7 +61,11 @@ export async function extractText(f: File): Promise<{ text: string; kind: Kind; 
     const r = await (mammoth.default || mammoth).extractRawText({ arrayBuffer: await f.arrayBuffer() })
     return { text: r.value.trim(), kind, via: 'docx text' }
   }
-  if (kind === 'text') return { text: (await f.text()).replace(/\{\\[^}]*\}|\\[a-z]+\d* ?/g, ' ').trim(), kind, via: 'plain text' }
+  if (kind === 'text') {
+    let t = await f.text()
+    if (t.trimStart().startsWith('{\\rtf')) t = t.replace(/\{\\(fonttbl|colortbl|stylesheet|info)[\s\S]*?\}\s*\}/g, '').replace(/\\par[d]?/g, '\n').replace(/\\[a-z]+-?\d* ?/g, '').replace(/[{}]/g, '')
+    return { text: t.trim(), kind, via: 'plain text' }
+  }
   if (kind === 'image') return { text: await ocr([f]), kind, via: 'AI read the image' }
   if (kind === 'doc') {
     // legacy Word: pull printable runs out of the binary; good enough for names, skills and numbers
