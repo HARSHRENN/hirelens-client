@@ -7,7 +7,7 @@ export async function body(req) {
   try { return JSON.parse(Buffer.concat(chunks).toString('utf8') || '{}') } catch { return {} }
 }
 // strip what copy-paste drags in: spaces, line breaks, quotes, zero-width characters, a "Bearer " prefix
-const clean = (v) => v.toString().replace(/^\s*bearer\s+/i, '').replace(/[\s"'`\u200b-\u200d\ufeff]/g, '')
+const clean = (v) => v.toString().replace(/["'`\u200b-\u200d\ufeff]/g, '').trim().replace(/^bearer\s+/i, '').replace(/\s/g, '')
 export const pick = (req, header, env) => clean(req.headers[header] || process.env[env] || '')
 export const allow = (req, res) => {
   const origin = process.env.ALLOWED_ORIGIN

@@ -116,7 +116,7 @@ export function Admin() {
 }
 
 // keys pasted from dashboards often carry spaces, line breaks, quotes or a "Bearer " prefix
-export const cleanKey = (v: string) => v.replace(/^\s*bearer\s+/i, '').replace(/[\s"'`\u200b-\u200d\ufeff]/g, '')
+export const cleanKey = (v: string) => v.replace(/["'`\u200b-\u200d\ufeff]/g, '').trim().replace(/^bearer\s+/i, '').replace(/\s/g, '')
 
 function Secret({ label, k, hint, placeholder, plain }: { label: string; k: keyof Secrets; hint?: string; placeholder?: string; plain?: boolean }) {
   const v = useStore((s) => s.secrets[k]) as string
