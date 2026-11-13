@@ -4,7 +4,7 @@ import { allow, body, json, pick } from './_util.js'
 export default async function handler(req, res) {
   if (!allow(req, res)) return
   const b = await body(req)
-  const provider = b.provider || process.env.AI_PROVIDER || 'anthropic'
+  const provider = b.provider || process.env.AI_PROVIDER || 'openai'
   const key = pick(req, 'x-ai-key', provider === 'openai' ? 'OPENAI_API_KEY' : provider === 'gemini' ? 'GEMINI_API_KEY' : 'ANTHROPIC_API_KEY')
   if (!key) return json(res, 400, { error: `No ${provider} API key. Add one in Admin, or set it on the server.` })
   if (!b.prompt) return json(res, 400, { error: 'Missing prompt' })
@@ -22,7 +22,7 @@ export default async function handler(req, res) {
     } else if (provider === 'openai') {
       const r = await fetch('https://api.openai.com/v1/chat/completions', {
         method: 'POST', headers: { authorization: `Bearer ${key}`, 'content-type': 'application/json' },
-        body: JSON.stringify({ model: b.model || process.env.AI_MODEL || 'gpt-5.6-mini',
+        body: JSON.stringify({ model: b.model || process.env.AI_MODEL || (b.quick ? 'gpt-5.6-luna' : 'gpt-5.6-terra'),
           messages: [{ role: 'user', content: [...images.map((i) => ({ type: 'image_url', image_url: { url: `data:${i.type};base64,${i.data}` } })), { type: 'text', text: b.prompt }] }] }),
       })
       const j = await r.json(); if (!r.ok) throw new Error(j.error?.message || `OpenAI ${r.status}`)

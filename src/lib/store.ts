@@ -1,5 +1,5 @@
 import { useSyncExternalStore } from 'react'
-import { cap } from './runtime'
+import { cap, TARGET } from './runtime'
 import type { AppConfig, Candidate, Job, Secrets, Template } from './types'
 import { lsGet, lsSet } from './util'
 
@@ -30,7 +30,7 @@ export const DEFAULT_CONFIG: AppConfig = {
 }
 
 export const DEFAULT_SECRETS: Secrets = {
-  aiProvider: 'builtin', anthropicKey: '', openaiKey: '', geminiKey: '', aiModel: '',
+  aiProvider: TARGET === 'web' ? 'openai' : 'builtin', anthropicKey: '', openaiKey: '', geminiKey: '', aiModel: '',
   googleMapsKey: '', waPhoneNumberId: '', waToken: '', resendKey: '', emailFrom: '',
   webhookUrl: '', apiBase: '',
 }

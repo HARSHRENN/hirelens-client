@@ -80,10 +80,11 @@ export function Admin() {
       <div className="form-grid">
         <Field label="AI provider" hint="Reads resumes, writes JDs, summarises calls, translates">
           <Select value={secrets.aiProvider} onChange={(e) => setSecrets({ aiProvider: e.target.value as Secrets['aiProvider'] })} options={[
-            { value: 'builtin', label: TARGET === 'artifact' ? 'Claude (built in)' : 'Server default' },
-            { value: 'anthropic', label: 'Anthropic Claude (your key)' }, { value: 'openai', label: 'OpenAI (your key)' }, { value: 'gemini', label: 'Google Gemini (your key)' }]} />
+            { value: 'openai', label: 'OpenAI (your key)' },
+            { value: 'builtin', label: TARGET === 'artifact' ? 'Claude (built in)' : 'Server default key' },
+            { value: 'anthropic', label: 'Anthropic Claude (your key)' }, { value: 'gemini', label: 'Google Gemini (your key)' }]} />
         </Field>
-        <Field label="Model" hint="Optional, for example claude-sonnet-5-5, gpt-5.6 or gemini-3.1-pro"><Input value={secrets.aiModel} onChange={(e) => setSecrets({ aiModel: e.target.value.trim() })} placeholder="Provider default" /></Field>
+        <Field label="Model" hint="Optional. OpenAI default is gpt-5.6-terra (gpt-5.6-luna for quick tasks); use gpt-5.6-sol for the strongest reads"><Input value={secrets.aiModel} onChange={(e) => setSecrets({ aiModel: e.target.value.trim() })} placeholder="Provider default" /></Field>
         {secrets.aiProvider === 'anthropic' && <Secret label="Anthropic API key" k="anthropicKey" placeholder="sk-ant-…" />}
         {secrets.aiProvider === 'openai' && <Secret label="OpenAI API key" k="openaiKey" placeholder="sk-…" />}
         {secrets.aiProvider === 'gemini' && <Secret label="Gemini API key" k="geminiKey" placeholder="AIza…" />}

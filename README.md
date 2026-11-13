@@ -39,7 +39,7 @@ npm run build:artifact     # one self-contained HTML for a claude.ai artifact
 
 Typed in **Admin** (stored only in that browser, sent as headers to `/api/*`), or set as Vercel env vars (see `.env.example`):
 
-- AI: `ANTHROPIC_API_KEY` / `OPENAI_API_KEY` / `GEMINI_API_KEY`, `AI_PROVIDER`, `AI_MODEL`
+- AI (default OpenAI, gpt-5.6-terra): `OPENAI_API_KEY`, or `ANTHROPIC_API_KEY` / `GEMINI_API_KEY` with `AI_PROVIDER`; `AI_MODEL` to override
 - WhatsApp Cloud API: `WHATSAPP_PHONE_NUMBER_ID`, `WHATSAPP_TOKEN` (business-initiated messages need Meta-approved templates)
 - Email: `RESEND_API_KEY`, `EMAIL_FROM` (verified domain)
 - Maps: `GOOGLE_MAPS_API_KEY` (Geocoding API)
