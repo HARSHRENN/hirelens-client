@@ -6,7 +6,9 @@ export async function body(req) {
   const chunks = []; for await (const c of req) chunks.push(c)
   try { return JSON.parse(Buffer.concat(chunks).toString('utf8') || '{}') } catch { return {} }
 }
-export const pick = (req, header, env) => (req.headers[header] || process.env[env] || '').toString().trim()
+// strip what copy-paste drags in: spaces, line breaks, quotes, zero-width characters, a "Bearer " prefix
+const clean = (v) => v.toString().replace(/^\s*bearer\s+/i, '').replace(/[\s"'`\u200b-\u200d\ufeff]/g, '')
+export const pick = (req, header, env) => clean(req.headers[header] || process.env[env] || '')
 export const allow = (req, res) => {
   const origin = process.env.ALLOWED_ORIGIN
   if (origin) res.setHeader('access-control-allow-origin', origin)

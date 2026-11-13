@@ -4,7 +4,8 @@ import { CandidateDrawer } from './views/CandidateDrawer'
 import { PressFilter, ToastHost, useToast } from './components/ui'
 import { aiStatus } from './lib/ai'
 import { href, useRoute, type Route } from './lib/router'
-import { ensureTemplates } from './lib/sample'
+import { ensureTemplates, loadSample } from './lib/sample'
+import { TARGET } from './lib/runtime'
 import { initStore, onStoreError, useStore } from './lib/store'
 import { Admin } from './views/Admin'
 import { Candidates } from './views/Candidates'
@@ -43,7 +44,14 @@ function Shell() {
   const [ai, setAi] = useState<{ ok: boolean; via: string } | null>(null)
 
   useEffect(() => { onStoreError((m) => toast(m, { kind: 'error' })); initStore() }, [toast])
-  useEffect(() => { if (ready && !offline) ensureTemplates() }, [ready, offline])
+  useEffect(() => {
+    if (!ready || offline) return
+    ensureTemplates()
+    // the deployed demo starts filled: sample jobs and profiles on first visit (Admin → Delete all data clears them for good)
+    let seeded = true
+    try { seeded = !!localStorage.getItem('hl-seeded') } catch { /* storage blocked */ }
+    if (TARGET === 'web' && !seeded && !nJobs && !nCands) { try { localStorage.setItem('hl-seeded', '1') } catch { /* ignore */ } loadSample() }
+  }, [ready, offline]) // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => { aiStatus().then(setAi) }, [secrets.aiProvider])
   useEffect(() => { setOpen(false) }, [route])
   useEffect(() => { document.title = `${cfg.productName} · ${titleOf(route)}` }, [route, cfg.productName])

@@ -37,5 +37,9 @@ export default async function handler(req, res) {
       text = j.candidates?.[0]?.content?.parts?.map((p) => p.text || '').join('') || ''
     } else return json(res, 400, { error: `Unknown provider ${provider}` })
     json(res, 200, { text })
-  } catch (e) { json(res, 502, { error: e.message }) }
+  } catch (e) {
+    // name the key the provider actually received, so it can be compared with the one in the dashboard
+    const seen = key ? ` (sent ${key.slice(0, 8)}…${key.slice(-4)}, ${key.length} characters)` : ''
+    json(res, 502, { error: e.message + seen })
+  }
 }

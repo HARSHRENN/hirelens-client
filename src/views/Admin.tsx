@@ -115,12 +115,20 @@ export function Admin() {
   </>
 }
 
+// keys pasted from dashboards often carry spaces, line breaks, quotes or a "Bearer " prefix
+export const cleanKey = (v: string) => v.replace(/^\s*bearer\s+/i, '').replace(/[\s"'`\u200b-\u200d\ufeff]/g, '')
+
 function Secret({ label, k, hint, placeholder, plain }: { label: string; k: keyof Secrets; hint?: string; placeholder?: string; plain?: boolean }) {
   const v = useStore((s) => s.secrets[k]) as string
   const [show, setShow] = useState(false)
-  return <Field label={label} hint={hint || (v ? 'Saved in this browser' : 'Not set')}>
+  const masked = v && !plain ? `Saved in this browser: ${v.slice(0, 8)}…${v.slice(-4)} (${v.length} characters)` : v ? 'Saved in this browser' : 'Not set'
+  return <Field label={label} hint={hint ? <>{hint}<br />{masked}</> : masked}>
     <div className="secret-row">
-      <Input type={plain || show ? 'text' : 'password'} autoComplete="off" spellCheck={false} value={v} placeholder={placeholder} onChange={(e) => setSecrets({ [k]: e.target.value.trim() } as Partial<Secrets>)} />
+      {/* a text field masked with CSS, so browser password managers do not autofill over the key */}
+      <Input type="text" name={`hl-${k}`} autoComplete="off" autoCorrect="off" autoCapitalize="off" spellCheck={false}
+        data-1p-ignore="true" data-lpignore="true" data-form-type="other"
+        style={!plain && !show ? ({ WebkitTextSecurity: 'disc' } as React.CSSProperties) : undefined}
+        value={v} placeholder={placeholder} onChange={(e) => setSecrets({ [k]: plain ? e.target.value.trim() : cleanKey(e.target.value) } as Partial<Secrets>)} />
       {!plain && <Button variant="ghost" icon aria-label={show ? `Hide ${label}` : `Show ${label}`} onClick={() => setShow(!show)}>{show ? <EyeOff size={16} /> : <Eye size={16} />}</Button>}
     </div>
   </Field>
