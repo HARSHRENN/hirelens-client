@@ -7,7 +7,7 @@ export const DEFAULT_SETTINGS = {
   aiProvider: 'openai', aiModel: '', openaiKey: '', anthropicKey: '', geminiKey: '',
   resendKey: '', emailFrom: '', replyTo: '',
   trialDays: 7, planName: 'HireLens Pro', price: 4999, taxPct: 18,
-  seller: { name: 'AlphacodeAI Private Limited', address: 'Malad West, Mumbai 400064, Maharashtra', gstin: '' },
+  seller: { name: 'HireLens', address: '', gstin: '' },
   emailDailyLimit: 100, // Resend free tier: 100 a day, 3,000 a month
   emailMonthlyLimit: 3000,
   userEmailDailyLimit: 40, // per recruiter, for emails they send by hand

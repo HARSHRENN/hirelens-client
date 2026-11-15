@@ -9,7 +9,7 @@ import { useUi } from '../lib/uictx'
 import { ago, fill, uid } from '../lib/util'
 
 const VARS = ['name', 'fullName', 'role', 'company', 'client', 'location', 'recruiter', 'interviewTime', 'meetLink']
-const SAMPLE = { name: 'Asha', fullName: 'Asha Example', role: 'Senior Java Developer', company: 'AlphacodeAI', client: 'Example Fintech', location: 'Malad, Mumbai', recruiter: 'Riya', interviewTime: 'Tue, 18 Nov, 11:00 am', meetLink: 'https://meet.google.com/abc-defg-hij' }
+const SAMPLE = { name: 'Asha', fullName: 'Asha Example', role: 'Senior Java Developer', company: 'Example Staffing', client: 'Example Fintech', location: 'Malad, Mumbai', recruiter: 'Riya', interviewTime: 'Tue, 18 Nov, 11:00 am', meetLink: 'https://meet.google.com/abc-defg-hij' }
 
 export function Outreach() {
   const ready = useStore((s) => s.ready)

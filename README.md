@@ -1,6 +1,6 @@
 # HireLens
 
-AI recruitment SaaS by AlphacodeAI. Recruiters sign up for their own workspace: job descriptions, AI resume matching, a candidate tracker, panel interviews, WhatsApp and email outreach, automatic interview invites and reminders, a hiring dashboard, and billing with a free trial. One platform admin sets the keys, the plan and the trial for everyone.
+AI recruitment SaaS. Recruiters sign up for their own workspace: job descriptions, AI resume matching, a candidate tracker, panel interviews, WhatsApp and email outreach, automatic interview invites and reminders, a hiring dashboard, and billing with a free trial. One platform admin sets the keys, the plan and the trial for everyone.
 
 See `HANDOVER.md` for the full brief.
 

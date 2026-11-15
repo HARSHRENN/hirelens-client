@@ -1,6 +1,6 @@
 # HireLens handover brief
 
-Updated 15 Nov 2026. Owner: Aryan Chandwani, AlphacodeAI.
+Updated 15 Nov 2026. Owner: Aryan Chandwani.
 
 ## 1. What HireLens is
 
@@ -110,6 +110,6 @@ Follow `demo-kit/DEMO SCRIPT.md`. For a SaaS walk-through:
 - **Supabase free projects pause** after 7 days without use. Upgrade, or keep traffic flowing.
 - **Payments are not taken in the app.** Invoices are raised and emailed; the admin marks them paid. Next step: a Razorpay payment link on each invoice.
 - **No lockout after the trial.** Unpaid accounts keep working until the admin suspends them.
-- **GST:** AlphacodeAI has no GSTIN yet, so set tax to 0 or add the GSTIN before charging GST.
+- **GST:** If the seller has no GSTIN, set tax to 0 or add the GSTIN before charging GST.
 - **Not built:** recruiter teams (several users in one workspace), the Calendly API (link only) and the WhatsApp API (removed by request).
 - **Next steps:** payment links, team seats, DPDP consent and retention for candidate data, lazy-loading pdfjs and mammoth.

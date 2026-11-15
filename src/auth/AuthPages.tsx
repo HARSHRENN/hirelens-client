@@ -47,7 +47,7 @@ function Shell({ title, sub, children, foot }: { title: string; sub?: ReactNode;
         <li><Check size={14} />Interview invites and reminders emailed for you</li>
       </ul>
     </main>
-    <footer className="auth-bottom">Built by AlphacodeAI, Mumbai</footer>
+    <footer className="auth-bottom">© 2026 HireLens</footer>
   </div>
 }
 
