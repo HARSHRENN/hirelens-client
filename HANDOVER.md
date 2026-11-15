@@ -33,10 +33,10 @@ npm run build        # runs the database migration (if connected), then builds o
 
 1. **Push and import.** Push the repo to your GitHub, then in Vercel: New Project → the repo → Framework **Other**. Leave the build settings alone; `vercel.json` sets them.
 2. **Connect the database.** Vercel → project → **Storage → Create Database → Supabase** (free) → connect to the project, all environments. This adds `SUPABASE_URL`, the anon and service keys and `POSTGRES_URL_*` automatically.
-3. **Add environment variables:** `ADMIN_EMAILS` (the admin's email) and `CRON_SECRET` (any long random string). Then redeploy. The build creates every table on its own.
-4. **Sign up as the admin.** Go to `/signup` and use the `ADMIN_EMAILS` address. Then open `/admin` → **Keys and plan**:
+3. **Add environment variables:** `CRON_SECRET` (any long random string). Then redeploy. The build creates every table on its own.
+4. **Sign in as the admin.** Open `/admin` and sign in with username `admin` and the admin password (ask Aryan; it isn't stored in the repo, only its scrypt hash in `api/_lib/adminAuth.js`). To change it, run `node scripts/admin-hash.mjs 'new password'` and set the output as `ADMIN_PASSWORD_HASH` in Vercel. Then go to **Keys and plan**:
    - Add the OpenAI key and press *Test AI*.
-   - Add the Resend key and a "Send from" address on a domain verified in Resend, then press *Send me a test email*.
+   - Add the Resend key and a "Send from" address on a domain verified in Resend, then send a test email.
    - Set the trial, plan, price, tax and seller.
 5. **Done.** Recruiters can now sign up at `/signup`.
 
@@ -50,7 +50,7 @@ Browser ──(Supabase JS, user's own token)──> Supabase Postgres (row-leve
    └──(Bearer token)──> /api/* on Vercel ──(service role)──> same database
                            ├─ auth.js   sign-up, verify, forgot (emails via Resend)
                            ├─ app.js    me, profile, geocode, send-email, interview-invite, billing, files, webhook
-                           ├─ admin.js  overview, settings, users, invoices, tests, migrate (admin only)
+                           ├─ admin.js  login (admin password), overview, settings, users, invoices, tests, migrate
                            ├─ ai.js     AI calls with the platform key, per-user daily cap
                            └─ cron.js   daily 02:30 UTC = 08:00 IST: reminders + invoices
 ```
@@ -60,6 +60,7 @@ Browser ──(Supabase JS, user's own token)──> Supabase Postgres (row-leve
 - **Schema.** `api/_lib/schema.js` is idempotent. It runs on every build (`scripts/migrate.mjs`, never fails the build) and from Admin → System.
 - **Auth.** Supabase Auth with email and password. `/api/auth` creates the user with `generateLink` and sends our own email through Resend, linking to `/verify?token_hash=…`; the browser calls `verifyOtp`. This avoids Supabase's own mailer and redirect-URL settings entirely.
 - **Keys.** Keys never reach a browser. The admin panel shows only a fingerprint.
+- **Admin login.** `/admin` has its own username and password, separate from recruiter accounts, so it works before the database is connected. A signed HMAC session token is kept in the browser for 7 days. `ADMIN_EMAILS` can additionally make a recruiter account an admin.
 - **Three modes in one codebase** (`src/lib/runtime.ts`):
   - `cloud`: the real product.
   - `demo`: localStorage, AI off.

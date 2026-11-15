@@ -475,3 +475,5 @@ dl.facts dd.fig { font-weight: 400; }
 .search { display: flex; align-items: center; gap: 8px; }
 .search .input { flex: 1; }
 .auth-agree { flex-wrap: nowrap; gap: var(--space-xs); }
+.auth--solo { grid-template-columns: 1fr; }
+.auth--solo .field { display: grid; gap: 6px; }

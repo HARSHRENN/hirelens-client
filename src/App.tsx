@@ -4,7 +4,7 @@ import { Forgot, Login, Reset, Signup, Verify } from './auth/AuthPages'
 import { Mark } from './components/Mark'
 import { Button, PressFilter, Skeleton, ToastHost, useToast } from './components/ui'
 import { aiStatus } from './lib/ai'
-import { api, ApiError, loadConfig, signOut, supa, type Me } from './lib/cloud'
+import { adminToken, api, ApiError, loadConfig, setAdminToken, signOut, supa, type Me } from './lib/cloud'
 import { MeCtx } from './lib/me'
 import { href, useRoute, type Route } from './lib/router'
 import { MODE, setMode, TARGET } from './lib/runtime'
@@ -42,7 +42,7 @@ export default function App() {
   else if (path === '/verify') page = <Verify />
   else if (path === '/forgot') page = <Forgot />
   else if (path === '/reset') page = <Reset />
-  else if (path === '/admin') page = <Gate admin />
+  else if (path === '/admin') page = <AdminGate />
   else page = <Gate />
   return <ToastHost>{page}</ToastHost>
 }
@@ -86,6 +86,41 @@ function Gate({ admin = false }: { admin?: boolean }) {
     return <MeCtx.Provider value={ctx}><Suspense fallback={<div className="boot"><Mark size={34} /></div>}><AdminApp /></Suspense></MeCtx.Provider>
   }
   return <MeCtx.Provider value={ctx}><Workspace me={state.me} /></MeCtx.Provider>
+}
+
+/** /admin: its own username and password, independent of recruiter accounts and of the database. */
+function AdminGate() {
+  const [state, setState] = useState<'checking' | 'login' | 'in'>(adminToken() ? 'checking' : 'login')
+  useEffect(() => {
+    document.title = 'Admin · HireLens'
+    if (state !== 'checking') return
+    api('admin', 'whoami').then(() => setState('in')).catch(() => { setAdminToken(''); setState('login') })
+  }, [state])
+  if (state === 'checking') return <div className="boot"><Mark size={34} /></div>
+  if (state === 'login') return <AdminLogin onIn={() => setState('in')} />
+  return <MeCtx.Provider value={{ me: null, refresh: async () => {} }}><Suspense fallback={<div className="boot"><Mark size={34} /></div>}><AdminApp /></Suspense></MeCtx.Provider>
+}
+
+function AdminLogin({ onIn }: { onIn: () => void }) {
+  const [u, setU] = useState('admin')
+  const [pw, setPw] = useState('')
+  const [err, setErr] = useState('')
+  const [busy, setBusy] = useState(false)
+  return <div className="auth auth--solo"><main className="auth-main"><div className="auth-card">
+    <span className="wordmark auth-mark-sm" style={{ display: 'flex' }}><Mark size={26} />Admin</span>
+    <h1>Platform admin</h1>
+    <p className="auth-sub">Keys, plans, recruiters and invoices for the whole platform.</p>
+    <form className="auth-form" onSubmit={async (e) => {
+      e.preventDefault(); setBusy(true); setErr('')
+      try { const { token } = await api<{ token: string }>('admin', 'login', { username: u, password: pw }); setAdminToken(token); onIn() }
+      catch (x: any) { setErr(x.message) } finally { setBusy(false) }
+    }}>
+      <label className="field"><span className="label">Username</span><input className="input" autoComplete="username" value={u} onChange={(e) => setU(e.target.value)} /></label>
+      <label className="field"><span className="label">Password</span><input className="input" type="password" autoComplete="current-password" value={pw} onChange={(e) => setPw(e.target.value)} autoFocus /></label>
+      {err && <div className="auth-notice auth-notice--error" role="alert">{err}</div>}
+      <Button type="submit" variant="ink" busy={busy} disabled={!u || !pw}>Sign in</Button>
+    </form>
+  </div><p className="auth-foot"><a href="/">Back to the site</a></p></main></div>
 }
 
 function Setup() {

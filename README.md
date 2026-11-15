@@ -11,7 +11,7 @@ See `HANDOVER.md` for the full brief.
 | `/` | Everyone | Landing site |
 | `/signup`, `/login`, `/forgot`, `/reset`, `/verify` | Everyone | Accounts |
 | `/u/<username>` | A signed-in recruiter | Their own workspace (jobs, tracker, pipeline, outreach, panelists, billing, settings) |
-| `/admin` | The platform admin | Keys, plan and trial, every recruiter's numbers, invoices, email usage |
+| `/admin` | The platform admin (username `admin` + password) | Keys, plan and trial, every recruiter's numbers, invoices, email usage |
 | `/demo` | Everyone | Sample workspace in the browser, no account, AI off |
 
 ## Layout

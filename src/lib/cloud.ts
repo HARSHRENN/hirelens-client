@@ -50,11 +50,17 @@ export class ApiError extends Error {
   constructor(msg: string, status: number) { super(msg); this.status = status }
 }
 
+/* The admin's own password session (separate from recruiter accounts), kept in this browser. */
+const ADMIN_KEY = 'hl-admin-token'
+export const adminToken = () => { try { return localStorage.getItem(ADMIN_KEY) || '' } catch { return '' } }
+export const setAdminToken = (t: string) => { try { if (t) localStorage.setItem(ADMIN_KEY, t); else localStorage.removeItem(ADMIN_KEY) } catch { /* storage blocked */ } }
+
 export async function api<T = any>(fn: 'app' | 'auth' | 'admin' | 'ai', action: string, body: Record<string, unknown> = {}, opts: { signal?: AbortSignal } = {}): Promise<T> {
-  const ses = fn === 'auth' ? null : await session()
+  const adm = fn === 'admin' ? adminToken() : ''
+  const ses = fn === 'auth' || adm ? null : await session()
   const r = await fetch(`/api/${fn}`, {
     method: 'POST', signal: opts.signal,
-    headers: { 'content-type': 'application/json', ...(ses ? { authorization: `Bearer ${ses.access_token}` } : {}) },
+    headers: { 'content-type': 'application/json', ...(ses ? { authorization: `Bearer ${ses.access_token}` } : {}), ...(adm ? { 'x-admin-token': adm } : {}) },
     body: JSON.stringify({ action, ...body }),
   })
   const j = await r.json().catch(() => ({}))

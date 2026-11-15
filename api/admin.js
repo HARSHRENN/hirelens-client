@@ -1,18 +1,31 @@
 import { callModel } from './_lib/ai.js'
 import { emailInvoice, ensureInvoices, trialEndOf } from './_lib/billing.js'
-import { fail, route } from './_lib/http.js'
+import { checkPassword, issueToken, requireAdmin, throttleLogin } from './_lib/adminAuth.js'
+import { fail, isEmail, route } from './_lib/http.js'
 import { sendMail } from './_lib/mail.js'
 import { migrate } from './_lib/migrate.js'
 import { sendReminders } from './_lib/reminders.js'
-import { getSettings, publicSettings, saveSettings } from './_lib/settings.js'
-import { countUsage, db, isAdminProfile, requireUser, startOfUtcDay, startOfUtcMonth } from './_lib/supa.js'
+import { DEFAULT_SETTINGS, getSettings, publicSettings, saveSettings } from './_lib/settings.js'
+import { countUsage, db, isAdminProfile, isConfigured, startOfUtcDay, startOfUtcMonth } from './_lib/supa.js'
 
-// The platform admin's panel (/admin). Every action checks the caller is the admin.
-const admin = (req) => requireUser(req, { admin: true })
+// The platform admin's panel (/admin). Every action but login checks the caller is the admin.
+const admin = (req) => requireAdmin(req)
 
 export default route({
+  async login(req, b) {
+    const t = throttleLogin(req)
+    await new Promise((r) => setTimeout(r, 400)) // slows guessing
+    if (!checkPassword(b.username, b.password)) { t.fail(); fail(401, 'Wrong username or password.') }
+    t.ok()
+    return { token: issueToken() }
+  },
+  async whoami(req) { const a = await admin(req); return { ok: true, via: a.via, dbConnected: isConfigured() } },
+
   async overview(req) {
     await admin(req)
+    if (!isConfigured()) {
+      return { dbConnected: false, settings: publicSettings({ ...DEFAULT_SETTINGS }), users: [], invoices: [], usage: { emailsToday: 0, emailsMonth: 0, aiToday: 0, aiMonth: 0, failedToday: 0, recent: [] }, cronSecret: !!process.env.CRON_SECRET }
+    }
     const s = await getSettings({ fresh: true })
     const [{ data: profiles }, { data: stats }, { data: invoices }] = await Promise.all([
       db().from('profiles').select('*').order('created_at', { ascending: false }),
@@ -27,7 +40,7 @@ export default route({
       db().from('usage_log').select('id', { count: 'exact', head: true }).eq('ok', false).gte('at', new Date(startOfUtcDay()).toISOString()).then((r) => r.count || 0),
     ])
     const { data: recent } = await db().from('usage_log').select('kind, detail, ok, error, at, owner').like('kind', 'email:%').order('at', { ascending: false }).limit(30)
-    return { settings: publicSettings(s), users, invoices: invoices || [], usage: { emailsToday, emailsMonth, aiToday, aiMonth, failedToday, recent: recent || [] }, cronSecret: !!process.env.CRON_SECRET }
+    return { dbConnected: true, settings: publicSettings(s), users, invoices: invoices || [], usage: { emailsToday, emailsMonth, aiToday, aiMonth, failedToday, recent: recent || [] }, cronSecret: !!process.env.CRON_SECRET }
   },
 
   async 'save-settings'(req, b) {
@@ -36,8 +49,8 @@ export default route({
   },
 
   async 'user-status'(req, b) {
-    const { profile: me } = await admin(req)
-    if (b.id === me.id) fail(400, "You can't suspend your own account.")
+    const me = await admin(req)
+    if (me.id && b.id === me.id) fail(400, "You can't suspend your own account.")
     if (!['active', 'suspended'].includes(b.status)) fail(400, 'Unknown status')
     const { error } = await db().from('profiles').update({ status: b.status }).eq('id', b.id)
     if (error) throw error
@@ -86,9 +99,10 @@ export default route({
     return { text: text.trim().slice(0, 60) }
   },
   async 'test-email'(req, b) {
-    const { profile } = await admin(req)
-    const to = b.to || profile.email
-    await sendMail({ owner: profile.id, kind: 'email:test', to, subject: 'HireLens test email', text: `This is a test from your ${(await getSettings()).productName} admin panel.\n\nIf you can read this, invites, reminders, invoices and sign-up emails will reach people too.` })
+    const me = await admin(req)
+    const to = String(b.to || me.email || '').trim()
+    if (!isEmail(to)) fail(400, 'Enter the address to send the test to.')
+    await sendMail({ owner: me.id, kind: 'email:test', to, subject: 'HireLens test email', text: `This is a test from your ${(await getSettings()).productName} admin panel.\n\nIf you can read this, invites, reminders, invoices and sign-up emails will reach people too.` })
     return { to }
   },
   async migrate(req) { await admin(req); return migrate() },

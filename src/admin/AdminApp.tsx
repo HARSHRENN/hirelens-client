@@ -3,7 +3,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Mark } from '../components/Mark'
 import { Button, ErrorBox, Field, Input, Select, Skeleton, useToast } from '../components/ui'
 import { fmtDay, fromRow, inr, invoicePdf, totalOf } from '../lib/billing'
-import { api, signOut } from '../lib/cloud'
+import { api, setAdminToken } from '../lib/cloud'
 import { saveFile } from '../lib/integrations'
 import { useMe } from '../lib/me'
 
@@ -19,7 +19,7 @@ interface Settings {
   emailDailyLimit: number; emailMonthlyLimit: number; userEmailDailyLimit: number; aiDailyLimit: number
 }
 interface Overview {
-  settings: Settings; users: User[]; invoices: Record<string, any>[]; cronSecret: boolean
+  dbConnected: boolean; settings: Settings; users: User[]; invoices: Record<string, any>[]; cronSecret: boolean
   usage: { emailsToday: number; emailsMonth: number; aiToday: number; aiMonth: number; failedToday: number; recent: { kind: string; detail: string; ok: boolean; error: string | null; at: string }[] }
 }
 
@@ -53,15 +53,15 @@ export default function AdminApp() {
           {id === 'users' && data && <span className="count">{data.users.length}</span>}</a>)}
       </div>
       <div className="rail-foot">
-        {me && <div className="me-card"><b>{me.profile.full_name}</b><span>Platform admin</span></div>}
-        {me && <a className="small" href={`/u/${me.profile.username}`}>Open my workspace</a>}
-        <button type="button" className="linkbtn small signout" onClick={signOut}><LogOut size={13} aria-hidden /> Sign out</button>
+        <div className="me-card"><b>{me ? me.profile.full_name : 'admin'}</b><span>Platform admin</span></div>
+        <button type="button" className="linkbtn small signout" onClick={() => { setAdminToken(''); location.replace('/admin') }}><LogOut size={13} aria-hidden /> Sign out</button>
       </div>
     </nav>
     <div className="main">
       <header className="topbar"><h1>{TABS.find((t) => t.id === tab)!.label}</h1><span className="spacer" /><Button variant="ghost" onClick={load}>Refresh</Button></header>
       <main className="page">
         {err ? <ErrorBox onRetry={load}>{err}</ErrorBox> : !data ? <Skeleton rows={6} /> : <>
+          {!data.dbConnected && <div className="setup-list" role="note"><b>Database not connected.</b> Recruiters can't sign up and settings can't be saved until Supabase is connected: Vercel → hirelens → Storage → Create Database → Supabase (free), connect it to the project, then redeploy.</div>}
           {tab === 'overview' && <OverviewTab d={data} />}
           {tab === 'users' && <UsersTab d={data} reload={load} />}
           {tab === 'invoices' && <InvoicesTab d={data} reload={load} />}
@@ -201,6 +201,7 @@ function SettingsTab({ d, reload }: { d: Overview; reload: () => void }) {
   const [f, setF] = useState({ ...s, openaiKey: '', anthropicKey: '', geminiKey: '', resendKey: '' })
   const [busy, setBusy] = useState('')
   const [msg, setMsg] = useState<{ k: string; ok: boolean; t: string } | null>(null)
+  const [testTo, setTestTo] = useState('')
   const toast = useToast()
   useEffect(() => { setF({ ...d.settings, openaiKey: '', anthropicKey: '', geminiKey: '', resendKey: '' }) }, [d.settings])
   const set = (p: Partial<typeof f>) => setF((x) => ({ ...x, ...p }))
@@ -249,7 +250,8 @@ function SettingsTab({ d, reload }: { d: Overview; reload: () => void }) {
         <Field label="Platform emails a month" hint="Resend free plan: 3,000"><Input type="number" min={0} value={f.emailMonthlyLimit} onChange={(e) => set({ emailMonthlyLimit: +e.target.value })} /></Field>
         <div className="span-2 row">
           <Button variant="ink" busy={busy === 'Email settings'} onClick={() => save(['resendKey', 'emailFrom', 'replyTo', 'userEmailDailyLimit', 'emailDailyLimit', 'emailMonthlyLimit'], 'Email settings')}>Save email settings</Button>
-          <Button busy={busy === 'email'} onClick={() => test('email', async () => `Sent to ${(await api<{ to: string }>('admin', 'test-email')).to}. Check the inbox.`)}>Send me a test email</Button>
+          <div style={{ width: 240 }}><Input type="email" aria-label="Send the test to" placeholder="Send a test to…" value={testTo} onChange={(e) => setTestTo(e.target.value.trim())} /></div>
+          <Button busy={busy === 'email'} disabled={!/\S+@\S+\.\S+/.test(testTo)} onClick={() => test('email', async () => `Sent to ${(await api<{ to: string }>('admin', 'test-email', { to: testTo })).to}. Check the inbox.`)}>Send test email</Button>
           {msg?.k === 'email' && <span className="small" style={{ color: msg.ok ? 'var(--color-success)' : 'var(--color-error)' }}>{msg.t}</span>}
         </div>
       </div>
