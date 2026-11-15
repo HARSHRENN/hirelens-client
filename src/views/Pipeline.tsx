@@ -1,8 +1,8 @@
 import { useMemo, useState } from 'react'
 import { TopBar } from '../components/TopBar'
 import { Empty, ScoreCell, Select, Skeleton } from '../components/ui'
-import { put, useStore } from '../lib/store'
-import { STAGES, stageLabel, type Candidate, type Stage } from '../lib/types'
+import { put, useStages, useStore } from '../lib/store'
+import { stageLabel, type Candidate, type Stage } from '../lib/types'
 import { useUi } from '../lib/uictx'
 import { fmtDays, fmtLpa, uid } from '../lib/util'
 
@@ -14,11 +14,12 @@ export function Pipeline() {
   const [over, setOver] = useState<Stage | null>(null)
   const [drag, setDrag] = useState<string | null>(null)
   const { openCandidate } = useUi()
+  const STAGES = useStages()
 
   const cols = useMemo(() => {
     const l = Object.values(cands).filter((c) => job === 'all' || c.jobId === job)
     return STAGES.map((s) => ({ ...s, items: l.filter((c) => c.stage === s.id).sort((a, b) => (b.match?.score ?? 0) - (a.match?.score ?? 0)) }))
-  }, [cands, job])
+  }, [cands, job, STAGES])
 
   function move(c: Candidate, s: Stage) {
     if (c.stage === s) return

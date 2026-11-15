@@ -113,10 +113,18 @@ export function StageTag({ stage }: { stage: Stage }) { return <span className="
 
 export function ScoreCell({ m }: { m?: Match }) {
   if (!m) return <span className="muted small">Not scored</span>
-  return <span className="score-cell" title={`${bandLabel(m.score)} (${m.by === 'ai' ? 'AI read' : 'rules'})`}>
-    <span className="meter" data-band={band(m.score)} aria-hidden><i style={{ transform: `scaleX(${m.score / 100})` }} /></span>
+  const b = band(m.score)
+  return <span className="score-cell" data-band={b} title={`${bandLabel(m.score)} (${m.by === 'ai' ? 'AI read' : 'rules'})`}>
+    <span className="meter" data-band={b} aria-hidden><i style={{ transform: `scaleX(${m.score / 100})` }} /></span>
     <span className="score">{m.score}<small>%</small></span>
+    <span className="visually-hidden">{bandLabel(m.score)}</span>
   </span>
+}
+
+/** A labelled colour chip: Potential match / Near match / Not a match. */
+export function BandChip({ score }: { score?: number }) {
+  if (score == null) return null
+  return <span className="band-chip" data-band={band(score)}>{bandLabel(score)}</span>
 }
 
 const PART_LABEL: Record<keyof MatchBreakdown, string> = { skills: 'Skills', experience: 'Experience', location: 'Location', ctc: 'CTC fit', notice: 'Notice period' }
@@ -126,8 +134,8 @@ export function MatchCard({ m, weights, shortlisted, children }: { m?: Match; we
     <div className="matchcard stock">
       {shortlisted && <span className="pressed" aria-label="Shortlisted">Shortlisted</span>}
       <div className="row" style={{ alignItems: 'end', gap: 'var(--space-md)' }}>
-        <div className="big">{m.score}<small>%</small></div>
-        <div className="stack" style={{ gap: 0 }}><b style={{ fontWeight: 500 }}>{bandLabel(m.score)}</b><span className="xs muted">{m.by === 'ai' ? 'Resume read by AI, scored by your weights' : 'Scored by keyword rules'}</span></div>
+        <div className="big" data-band={band(m.score)}>{m.score}<small>%</small></div>
+        <div className="stack" style={{ gap: 0 }}><BandChip score={m.score} /><span className="xs muted">{m.by === 'ai' ? 'Resume read by AI, scored by your weights' : 'Scored by keyword rules'}</span></div>
       </div>
       <div className="parts">
         {(Object.keys(PART_LABEL) as (keyof MatchBreakdown)[]).map((k) => (

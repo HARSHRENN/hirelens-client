@@ -1,9 +1,11 @@
+import { fmtBudget } from '../lib/util'
 import { ArrowLeft, Pencil, RefreshCw, Trash2, Upload } from 'lucide-react'
 import { useMemo, useRef, useState } from 'react'
 import { TopBar } from '../components/TopBar'
 import { Button, Dialog, Empty, ErrorBox, Groove, ScoreCell, Skeleton, StageTag, Tabs, Textarea, useToast } from '../components/ui'
 import { analyse, rescore } from '../lib/match'
 import { ACCEPT, extractText } from '../lib/parse'
+import { saveOriginal } from '../lib/files'
 import { go, href } from '../lib/router'
 import { getState, put, remove, useStore } from '../lib/store'
 import type { Candidate, Job } from '../lib/types'
@@ -36,7 +38,7 @@ export function JobDetail({ id, tab = 'candidates' }: { id: string; tab?: string
   return <>
     <TopBar crumb={<a className="crumb btn btn--ghost btn--icon btn--sm" href="#jobs" aria-label="Back to jobs"><ArrowLeft size={16} /></a>} title={job.title}
       actions={<Button size="sm" onClick={() => setEditing(true)}><Pencil size={14} />Edit job</Button>} />
-    <p className="muted small" style={{ marginTop: 'calc(var(--space-md) * -1)' }}>{job.client || 'Internal'}, {job.location.label} ({job.workMode}). {job.expMin} to {job.expMax} years, up to {job.ctcMaxLpa} LPA, notice up to {job.noticeMaxDays} days.</p>
+    <p className="muted small" style={{ marginTop: 'calc(var(--space-md) * -1)' }}>{job.client || 'Internal'}, {job.location.label} ({job.workMode}). {job.expMin} to {job.expMax} years, budget {fmtBudget(job)}, notice up to {job.noticeMaxDays} days.</p>
     <Tabs value={t} onChange={(v) => { location.hash = href({ name: 'job', id, tab: v === 'candidates' ? undefined : v }).slice(1) }}
       tabs={[{ id: 'candidates', label: 'Profiles' }, { id: 'ideal', label: 'Ideal candidate' }, { id: 'share', label: 'Share job' }, { id: 'calibration', label: 'Calibration call' }, { id: 'details', label: 'Description' }]} />
     {t === 'candidates' && <Profiles job={job} />}
@@ -50,7 +52,7 @@ export function JobDetail({ id, tab = 'candidates' }: { id: string; tab?: string
           <h2>Requirements</h2>
           <dl className="facts">
             <div><dt>Experience</dt><dd className="fig">{job.expMin}–{job.expMax} yrs</dd></div>
-            <div><dt>Budget</dt><dd className="fig">{job.ctcMaxLpa} LPA</dd></div>
+            <div><dt>Budget</dt><dd className="fig">{fmtBudget(job)}</dd></div>
             <div><dt>Notice</dt><dd className="fig">{fmtDays(job.noticeMaxDays)}</dd></div>
             <div><dt>Openings</dt><dd className="fig">{job.openings}</dd></div>
             <div><dt>Technology</dt><dd>{job.tech}</dd></div>
@@ -103,7 +105,7 @@ function Profiles({ job }: { job: Job }) {
 
   const upd = (id: string, p: Partial<QItem>) => setQueue((q) => q.map((x) => (x.id === id ? { ...x, ...p } : x)))
 
-  async function ingest(name: string, getText: () => Promise<{ text: string; kind: string }>, qid: string) {
+  async function ingest(name: string, getText: () => Promise<{ text: string; kind: string }>, qid: string, file?: File) {
     try {
       upd(qid, { state: 'reading' })
       const { text, kind } = await getText()
@@ -122,9 +124,11 @@ function Profiles({ job }: { job: Job }) {
         totalExp: ex.totalExp, relevantExp: ex.relevantExp ?? ex.totalExp, currentCtcLpa: dupe?.currentCtcLpa ?? ex.currentCtcLpa, expectedCtcLpa: dupe?.expectedCtcLpa ?? ex.expectedCtcLpa,
         noticeDays: dupe?.noticeDays ?? ex.noticeDays, currentLocation: place.label ? place : (dupe?.currentLocation || { label: '' }), distanceKm,
         skills: ex.skills || [], education: ex.education || '', summary: ex.summary || '', match,
+        employment: ex.employment?.length ? ex.employment : base.employment || [], ownerId: base.ownerId || st.me, hasOriginal: file ? true : base.hasOriginal,
         shortlisted: dupe?.shortlisted || match.score >= st.config.shortlistAt,
         remarks: [...(base.remarks || []), { id: uid('r'), at: now, kind: 'note', text: dupe ? `Resume updated (${name}), now ${match.score}% match` : `Resume added (${name}), ${match.score}% match` }],
       }
+      if (file) await saveOriginal(cand.id, file)
       await put('candidates', cand)
       upd(qid, { state: dupe ? 'duplicate' : 'done', note: dupe ? 'Same email or phone, profile updated' : `${match.score}%`, candId: cand.id })
     } catch (e: any) {
@@ -138,7 +142,7 @@ function Profiles({ job }: { job: Job }) {
     const items = fs.map((f) => ({ id: uid('q'), name: f.name, state: 'waiting' as const }))
     setQueue((q) => [...items, ...q].slice(0, 60))
     let i = 0
-    const worker = async () => { while (i < fs.length) { const k = i++; await ingest(fs[k]!.name, () => extractText(fs[k]!), items[k]!.id) } }
+    const worker = async () => { while (i < fs.length) { const k = i++; await ingest(fs[k]!.name, () => extractText(fs[k]!), items[k]!.id, fs[k]) } }
     await Promise.all([worker(), worker()])
     toast(`${fs.length} resume${fs.length > 1 ? 's' : ''} processed`)
   }

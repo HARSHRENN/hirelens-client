@@ -1,14 +1,15 @@
-import { CalendarPlus, Copy, Mail, MessageCircle, Send, Star, Trash2, Video } from 'lucide-react'
+import { Copy, Mail, MessageCircle, Pause, Send, Star, Trash2, X } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 import { Button, Dialog, Drawer, Empty, Field, Groove, Input, LinkButton, MatchCard, Select, StageTag, Tabs, Textarea, useToast } from '../components/ui'
 import { geocode, km, mapsLink } from '../lib/geo'
-import { calendarLink, canServerSend, candidateVars, copy, gmailLink, sendEmail, sendWhatsApp, waLink } from '../lib/integrations'
-import { rescore } from '../lib/match'
-import { getState, put, remove, useStore } from '../lib/store'
-import { STAGES, stageLabel, type Candidate, type Remark, type Stage } from '../lib/types'
+import { canServerSend, candidateVars, copy, gmailLink, sendEmail, sendWhatsApp, waLink } from '../lib/integrations'
+import { companiesCount, rescore, selfMatch } from '../lib/match'
+import { getState, put, remove, useStages, useStore } from '../lib/store'
+import { stageLabel, type Candidate, type Remark, type Stage } from '../lib/types'
+import { EmploymentEditor, EmploymentTimeline, PanelInterviews, ResumeFiles, SelfRating } from './CandidateExtras'
 import { ago, fill, fmtDays, fmtKm, fmtLpa, fmtYrs, uid } from '../lib/util'
 
-type Tab = 'overview' | 'contact' | 'interview' | 'notes' | 'resume'
+type Tab = 'overview' | 'contact' | 'interview' | 'self' | 'notes' | 'resume'
 
 const remark = (text: string, kind: Remark['kind']): Remark => ({ id: uid('r'), at: Date.now(), text, kind })
 
@@ -18,6 +19,7 @@ export function CandidateDrawer({ id, onClose }: { id: string; onClose: () => vo
   const [tab, setTab] = useState<Tab>('overview')
   const [confirm, setConfirm] = useState(false)
   const toast = useToast()
+  const STAGES = useStages()
 
   if (!c) return <Drawer title="Profile" onClose={onClose}><Empty title="This profile was removed">Someone on your team may have deleted it.</Empty></Drawer>
 
@@ -27,17 +29,21 @@ export function CandidateDrawer({ id, onClose }: { id: string; onClose: () => vo
   return <Drawer onClose={onClose}
     title={<span className="stack" style={{ gap: 0 }}><span>{c.name || 'Unnamed'}</span><span className="small muted" style={{ fontWeight: 400, letterSpacing: 0 }}>{job?.title || 'No job'}{c.currentRole ? `, now ${c.currentRole}${c.currentCompany ? ' at ' + c.currentCompany : ''}` : ''}</span></span>}
     actions={<>
-      <Button size="sm" variant={c.shortlisted ? 'ink' : 'card'} aria-pressed={c.shortlisted} onClick={() => save({ shortlisted: !c.shortlisted }, remark(c.shortlisted ? 'Removed from shortlist' : 'Shortlisted', 'note'))}><Star size={14} />{c.shortlisted ? 'Shortlisted' : 'Shortlist'}</Button>
-      <div style={{ width: 150 }}><Select aria-label="Stage" value={c.stage} onChange={(e) => setStage(e.target.value as Stage)} options={STAGES.map((s) => ({ value: s.id, label: s.label }))} /></div>
+      <Button size="sm" variant={c.shortlisted ? 'ink' : 'card'} aria-pressed={c.shortlisted} onClick={() => save({ shortlisted: !c.shortlisted, stage: !c.shortlisted && (c.stage === 'rejected' || c.stage === 'hold') ? 'contacted' : c.stage }, remark(c.shortlisted ? 'Removed from shortlist' : 'Shortlisted', 'note'))}><Star size={14} />{c.shortlisted ? 'Shortlisted' : 'Shortlist'}</Button>
+      <Button size="sm" variant={c.stage === 'hold' ? 'ink' : 'card'} aria-pressed={c.stage === 'hold'} onClick={() => setStage(c.stage === 'hold' ? 'contacted' : 'hold')}><Pause size={14} />Hold</Button>
+      <Button size="sm" variant={c.stage === 'rejected' ? 'ink' : 'card'} aria-pressed={c.stage === 'rejected'} onClick={() => c.stage === 'rejected' ? setStage('contacted') : save({ stage: 'rejected', shortlisted: false }, remark('Moved to Rejected', 'stage'))}><X size={14} />Reject</Button>
+      <div style={{ width: 160 }}><Select aria-label="Stage or level" value={c.stage} onChange={(e) => setStage(e.target.value as Stage)} options={STAGES.map((s) => ({ value: s.id, label: s.label }))} /></div>
     </>}>
-    <Tabs value={tab} onChange={setTab} tabs={[{ id: 'overview', label: 'Overview' }, { id: 'contact', label: 'Message' }, { id: 'interview', label: 'Interview' }, { id: 'notes', label: `Remarks (${c.remarks.length})` }, { id: 'resume', label: 'Resume' }]} />
+    <Tabs value={tab} onChange={setTab} tabs={[{ id: 'overview', label: 'Overview' }, { id: 'contact', label: 'Message' }, { id: 'interview', label: `Interviews (${(c.interviews || []).length})` }, { id: 'self', label: `Self rating${selfMatch(c, job) != null ? ` ${selfMatch(c, job)}%` : ''}` }, { id: 'notes', label: `Remarks (${c.remarks.length})` }, { id: 'resume', label: 'Resume' }]} />
 
     {tab === 'overview' && <Overview c={c} />}
     {tab === 'contact' && <Contact c={c} onSent={(kind, text) => save({ stage: c.stage === 'new' ? 'contacted' : c.stage }, remark(text, kind))} />}
-    {tab === 'interview' && <Interview c={c} />}
+    {tab === 'interview' && <PanelInterviews c={c} />}
+    {tab === 'self' && <SelfRating c={c} />}
     {tab === 'notes' && <Notes c={c} />}
     {tab === 'resume' && <section className="stack">
       <div className="row" style={{ justifyContent: 'space-between' }}><span className="small muted">{c.fileName}{c.fileKind ? `, ${c.fileKind}` : ''}</span><Button size="sm" variant="ghost" onClick={async () => toast((await copy(c.resumeText)) ? 'Resume text copied' : 'Copy blocked here')}><Copy size={14} />Copy text</Button></div>
+      <ResumeFiles c={c} />
       <div className="resume stock">{c.resumeText || 'No text was extracted.'}</div>
     </section>}
 
@@ -96,9 +102,13 @@ function Overview({ c }: { c: Candidate }) {
         <div><dt>Distance to job</dt><dd className="fig">{job?.workMode === 'remote' ? 'Remote role' : fmtKm(c.distanceKm)}{c.currentLocation.label && job?.location.label && job.workMode !== 'remote' ? <> <a className="xs" href={mapsLink(c.currentLocation.label, job.location.label)} target="_blank" rel="noreferrer">route</a></> : null}</dd></div>
         <div><dt>Phone</dt><dd className="fig">{c.phone || '—'}</dd></div>
         <div><dt>Email</dt><dd style={{ overflowWrap: 'anywhere' }}>{c.email || '—'}</dd></div>
+        <div><dt>Current company</dt><dd>{c.currentCompany || '—'}</dd></div>
+        <div><dt>Companies worked</dt><dd className="fig">{companiesCount(c) ?? '—'}</dd></div>
         <div><dt>Education</dt><dd>{c.education || '—'}</dd></div>
       </dl>
       {c.summary && <p className="small muted" style={{ maxWidth: '70ch' }}>{c.summary}</p>}
+      <div className="row" style={{ justifyContent: 'space-between', marginTop: 'var(--space-md)' }}><h3>Employment stint</h3><span className="small muted">{companiesCount(c) ? `${companiesCount(c)} companies` : ''}</span></div>
+      <EmploymentTimeline c={c} />
       {c.skills.length > 0 && <div className="chips">{c.skills.map((s) => <span key={s} className="chip">{s}</span>)}</div>}
     </div> : (
       <form className="form-grid" onSubmit={saveEdit}>
@@ -112,6 +122,8 @@ function Overview({ c }: { c: Candidate }) {
         <Field label="Expected CTC (LPA)"><Input type="number" step={0.1} inputMode="decimal" value={f.expectedCtcLpa ?? ''} onChange={(e) => setF({ ...f, expectedCtcLpa: n(e.target.value) })} /></Field>
         <Field label="Notice period (days)" hint="0 for immediate joiners"><Input type="number" step={1} inputMode="numeric" value={f.noticeDays ?? ''} onChange={(e) => setF({ ...f, noticeDays: n(e.target.value) })} /></Field>
         <Field label="Current role"><Input value={f.currentRole} onChange={(e) => setF({ ...f, currentRole: e.target.value })} /></Field>
+        <Field label="Current company"><Input value={f.currentCompany} onChange={(e) => setF({ ...f, currentCompany: e.target.value })} /></Field>
+        <div className="span-2 stack"><span className="label">Employment history</span><EmploymentEditor value={f.employment || []} onChange={(v) => setF({ ...f, employment: v })} /></div>
         <div className="span-2 row row--end"><Button variant="ghost" onClick={() => setEdit(false)}>Cancel</Button><Button type="submit" variant="ink" busy={busy}>Save and re-score</Button></div>
       </form>
     )}
@@ -171,48 +183,6 @@ function Contact({ c, onSent }: { c: Candidate; onSent: (kind: 'whatsapp' | 'ema
       {canServerSend() ? (channel === 'whatsapp' ? (secrets.waToken || secrets.waPhoneNumberId ? 'Send now uses your WhatsApp Business API number. Messages to someone who has not written in the last 24 hours must use a Meta-approved template.' : 'Add WhatsApp Business API keys in Admin to send from the app.') : (secrets.resendKey ? 'Send now delivers from your verified domain.' : 'Add a Resend key in Admin to send from the app.'))
         : 'Sending straight from the app works on the deployed version, with keys from Admin.'} Every message is logged in Remarks.
     </p>
-  </section>
-}
-
-/* ---------- interview: Google Meet scheduling ---------- */
-function Interview({ c }: { c: Candidate }) {
-  const job = useStore((s) => s.jobs[c.jobId])
-  const cfg = useStore((s) => s.config)
-  const def = () => { const d = new Date(Date.now() + 864e5); d.setHours(11, 0, 0, 0); return d }
-  const toLocal = (d: Date) => new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 16)
-  const [when, setWhen] = useState(toLocal(c.interviewAt ? new Date(c.interviewAt) : def()))
-  const [mins, setMins] = useState('45')
-  const [round, setRound] = useState<'l1' | 'l2'>(c.stage === 'l1' ? 'l2' : 'l1')
-  const [guests, setGuests] = useState('')
-  const [link, setLink] = useState(c.meetLink || '')
-  const toast = useToast()
-  const start = new Date(when)
-  const cal = calendarLink({
-    title: `${round.toUpperCase()} interview: ${c.name} for ${job?.title || 'role'}`, start, minutes: +mins,
-    details: `Candidate: ${c.name}\nPhone: ${c.phone}\nEmail: ${c.email}\nRole: ${job?.title} (${job?.client || cfg.companyName})\nMatch: ${c.match?.score ?? '—'}%\n\nAdd Google Meet video conferencing before saving.`,
-    guests: [c.email, ...guests.split(/[,\s]+/)],
-  })
-
-  async function save() {
-    if (isNaN(start.getTime())) return
-    await put('candidates', { ...c, interviewAt: start.getTime(), meetLink: link.trim(), stage: round, remarks: [...c.remarks, remark(`${round.toUpperCase()} interview set for ${start.toLocaleString('en-IN', { day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' })}${link ? ' on Google Meet' : ''}`, 'meet')] })
-    toast('Interview saved. Send the invite from Message.')
-  }
-
-  return <section className="stack" style={{ gap: 'var(--space-md)' }}>
-    <div className="form-grid">
-      <Field label="Date and time"><Input type="datetime-local" value={when} onChange={(e) => setWhen(e.target.value)} /></Field>
-      <Field label="Length"><Select value={mins} onChange={(e) => setMins(e.target.value)} options={[['30', '30 minutes'], ['45', '45 minutes'], ['60', '1 hour'], ['90', '90 minutes']].map(([value, label]) => ({ value: value!, label: label! }))} /></Field>
-      <Field label="Round"><Groove label="Round" value={round} onChange={setRound} options={[{ value: 'l1', label: 'L1 screening' }, { value: 'l2', label: 'L2 screening' }]} /></Field>
-      <Field label="Interviewers" hint="Emails, comma separated"><Input type="text" inputMode="email" value={guests} onChange={(e) => setGuests(e.target.value)} placeholder="panel@example.com" /></Field>
-    </div>
-    <div className="note stack">
-      <span><b style={{ fontWeight: 500 }}>1.</b> Create the event. Google Calendar opens with the candidate and panel invited; click Add Google Meet video conferencing, then Save.</span>
-      <div className="row"><LinkButton href={cal}><CalendarPlus size={14} />Open in Google Calendar</LinkButton><LinkButton variant="ghost" href="https://meet.new"><Video size={14} />Instant meeting (meet.new)</LinkButton></div>
-      <span><b style={{ fontWeight: 500 }}>2.</b> Paste the Meet link here so it goes into the invite message and the dashboard.</span>
-      <Input type="url" inputMode="url" aria-label="Google Meet link" placeholder="https://meet.google.com/abc-defg-hij" value={link} onChange={(e) => setLink(e.target.value)} />
-    </div>
-    <div className="row"><Button variant="ink" onClick={save}>Save interview</Button>{c.interviewAt && <span className="small muted">Currently {new Date(c.interviewAt).toLocaleString('en-IN', { weekday: 'short', day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' })}{c.meetLink && <> on <a href={c.meetLink} target="_blank" rel="noreferrer">Meet</a></>}</span>}</div>
   </section>
 }
 

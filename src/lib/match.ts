@@ -1,6 +1,7 @@
 import { completeJson } from './ai'
 import { geocode, km } from './geo'
-import type { Candidate, Job, Match, MatchBreakdown } from './types'
+import { getState } from './store'
+import type { Candidate, Employment, Job, Match, MatchBreakdown } from './types'
 import { clamp, norm } from './util'
 
 /* Matching = AI reads the resume into fields, then a transparent formula scores it.
@@ -14,6 +15,7 @@ export interface Extracted {
   currentCtcLpa: number | null; expectedCtcLpa: number | null; noticeDays: number | null
   currentLocation: string; skills: string[]; education: string; summary: string
   matchedSkills?: string[]; strengths?: string[]; gaps?: string[]; verdict?: string
+  employment?: Employment[]
 }
 
 const COMMON = ['java', 'spring', 'spring boot', 'python', 'django', 'flask', 'fastapi', 'javascript', 'typescript', 'react', 'next.js', 'angular', 'vue', 'node.js', 'express', 'go', 'golang', 'rust', 'c++', 'c#', '.net', 'php', 'laravel', 'ruby', 'rails', 'kotlin', 'swift', 'flutter', 'react native', 'android', 'ios', 'sql', 'mysql', 'postgresql', 'mongodb', 'redis', 'kafka', 'rabbitmq', 'elasticsearch', 'aws', 'azure', 'gcp', 'docker', 'kubernetes', 'terraform', 'jenkins', 'ci/cd', 'linux', 'microservices', 'rest', 'graphql', 'machine learning', 'deep learning', 'nlp', 'pytorch', 'tensorflow', 'pandas', 'spark', 'hadoop', 'airflow', 'power bi', 'tableau', 'excel', 'selenium', 'cypress', 'jmeter', 'sap', 'salesforce', 'figma', 'html', 'css', 'tailwind', 'llm', 'langchain', 'devops', 'sre', 'agile', 'scrum', 'jira', 'manual testing', 'automation testing', 'data engineering', 'etl', 'snowflake', 'databricks', 'hibernate', 'jpa']
@@ -38,11 +40,34 @@ export function rulesExtract(text: string, job?: Job): Extracted {
   const loc = t.match(/(?:location|current location|based in|address)\s*[:\-–]\s*([^\n|,]{2,40})/i)?.[1]?.trim() || ''
   const vocab = [...new Set([...COMMON, ...(job ? [...job.mustSkills, ...job.niceSkills].map((s) => s.toLowerCase()) : [])])]
   const skills = vocab.filter((s) => new RegExp(`(^|[^a-z0-9])${s.replace(/[.+#/]/g, (c) => '\\' + c)}([^a-z0-9]|$)`, 'i').test(lc))
+  const employment = rulesEmployment(lines)
   return {
-    name, email, phone, currentRole: '', currentCompany: '', totalExp, relevantExp: totalExp,
+    employment, name, email, phone, currentRole: employment[0]?.role || '', currentCompany: employment[0]?.company || '', totalExp, relevantExp: totalExp,
     currentCtcLpa, expectedCtcLpa, noticeDays, currentLocation: loc, skills, education: '',
     summary: lines.slice(0, 3).join(' ').slice(0, 220),
   }
+}
+
+const MONTHS = ['jan', 'feb', 'mar', 'apr', 'may', 'jun', 'jul', 'aug', 'sep', 'oct', 'nov', 'dec']
+const ym = (m: string | undefined, y: string) => `${y}-${String(m ? MONTHS.indexOf(m.slice(0, 3).toLowerCase()) + 1 || 1 : 1).padStart(2, '0')}`
+
+/** "Senior Engineer, Example Pay (Jun 2021 - Present)" and similar lines -> employment rows */
+export function rulesEmployment(lines: string[]): Employment[] {
+  const out: Employment[] = []
+  const re = /(?:([A-Za-z]{3,9})\s+)?((?:19|20)\d{2})\s*(?:-|–|to)\s*(?:(present|current|now|till date)|(?:([A-Za-z]{3,9})\s+)?((?:19|20)\d{2}))/i
+  for (const l of lines) {
+    const m = l.match(re)
+    if (!m || /education|b\.?e\.?|b\.?tech|university|college|school/i.test(l)) continue
+    const head = l.slice(0, m.index).replace(/[(|·•\-–\s]+$/, '').trim()
+    if (!head || head.length > 90) continue
+    const parts = head.split(/\s*(?:,| at | - | – | \| )\s*/).filter(Boolean)
+    const roleFirst = /engineer|developer|lead|manager|analyst|intern|consultant|architect|designer|tester|sdet|associate|specialist|executive|officer/i.test(parts[0] || '')
+    const role = (roleFirst ? parts[0] : parts[1]) || ''
+    const company = (roleFirst ? parts.slice(1).join(', ') : parts[0]) || ''
+    if (!company) continue
+    out.push({ company, role, from: ym(m[1], m[2]!), to: m[3] ? 'present' : ym(m[4], m[5]!) })
+  }
+  return out
 }
 
 export async function aiExtract(text: string, job: Job): Promise<Extracted> {
@@ -69,7 +94,8 @@ Return JSON with exactly these keys:
 "matchedSkills":string[] (which of the job's must-have AND nice-to-have skills the resume genuinely shows, using the job's exact spelling),
 "strengths":string[] (max 3, each under 12 words, specific to this job),
 "gaps":string[] (max 3, each under 12 words),
-"verdict":string (one sentence a hiring manager can act on)}`
+"verdict":string (one sentence a hiring manager can act on),
+"employment":[{"company":string,"role":string,"from":"YYYY-MM","to":"YYYY-MM" or "present"}] (every job in the resume, most recent first; estimate the month as 01 when only a year is given)}`
   return completeJson<Extracted>(prompt)
 }
 
@@ -94,9 +120,10 @@ export function scoreCandidate(c: Pick<Candidate, 'skills' | 'relevantExp' | 'to
   const notice = n == null ? 0.5 : n <= job.noticeMaxDays ? 1 : clamp(job.noticeMaxDays / n)
 
   const breakdown = { skills, experience, location, ctc, notice }
-  // missing most must-haves caps the score: a cheap, nearby, available profile without the core skills is still a weak match
-  const gate = mustPart < 0.5 ? 0.5 + mustPart : 1
-  const score = Math.round((w.skills * skills + w.experience * experience + w.location * location + w.ctc * ctc + w.notice * notice) * gate * 100)
+  // the four practical parts only count as far as the must-have skills are met: a nearby, affordable,
+  // available profile without the core skills is still not a match (it used to score ~65%)
+  const practical = w.experience * experience + w.location * location + w.ctc * ctc + w.notice * notice
+  const score = Math.round((w.skills * skills + practical * mustPart) * 100)
   const missing = job.mustSkills.filter((s) => !hit(s))
   return { score, breakdown, matchedSkills: [...mustHit, ...niceHit], missingSkills: missing }
 }
@@ -126,5 +153,28 @@ export function rescore(c: Candidate, job: Job, w: MatchBreakdown): Candidate {
   return { ...c, match: { ...(c.match || { strengths: [], gaps: [], verdict: '', by: 'rules', at: Date.now() }), ...s, at: Date.now() } as Match }
 }
 
-export const band = (score?: number) => score == null ? 'none' : score >= 90 ? 'top' : score >= 70 ? 'good' : score >= 50 ? 'fair' : 'low'
-export const bandLabel = (score?: number) => ({ top: 'Strong match', good: 'Good match', fair: 'Partial match', low: 'Weak match', none: 'Not scored' })[band(score)]
+// colour bands set by the super admin (defaults: 70+ potential, 40-69 near, under 40 not a match)
+export const band = (score?: number): 'good' | 'near' | 'low' | 'none' => {
+  if (score == null) return 'none'
+  const b = getState().config.bands
+  return score >= b.potential ? 'good' : score >= b.near ? 'near' : 'low'
+}
+export const bandLabel = (score?: number) => ({ good: 'Potential match', near: 'Near match', low: 'Not a match', none: 'Not scored' })[band(score)]
+
+/** The candidate's own 1-5 ratings against the JD skills, as a percentage (must-haves count 80%). */
+export function selfMatch(c: Candidate, job?: Job): number | null {
+  if (!job || !c.selfRatings) return null
+  const r = (s: string) => c.selfRatings![s]
+  const rated = [...job.mustSkills, ...job.niceSkills].filter((s) => r(s) != null)
+  if (!rated.length) return null
+  const avg = (list: string[]) => list.length ? list.reduce((a, s) => a + (r(s) ?? 0) / 5, 0) / list.length : null
+  const m = avg(job.mustSkills), n = avg(job.niceSkills)
+  return Math.round(((m ?? n ?? 0) * (n == null || m == null ? 1 : 0.8) + (m != null && n != null ? n * 0.2 : 0)) * 100)
+}
+
+/** Years worked per company, merged from employment rows. */
+export const yearsAt = (e: Employment) => {
+  const toN = (s: string) => s === 'present' ? new Date().getFullYear() + new Date().getMonth() / 12 : +s.slice(0, 4) + (+s.slice(5, 7) - 1) / 12
+  return Math.max(0, toN(e.to) - toN(e.from))
+}
+export const companiesCount = (c: Candidate) => new Set((c.employment || []).map((e) => e.company.toLowerCase())).size || null

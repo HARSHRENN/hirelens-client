@@ -1,3 +1,4 @@
+import { fmtBudget } from '../lib/util'
 import { Plus } from 'lucide-react'
 import { useState } from 'react'
 import { TopBar } from '../components/TopBar'
@@ -32,7 +33,8 @@ export function Jobs() {
             <a key={j.id} className="jobcard stock" href={href({ name: 'job', id: j.id })}>
               <div className="row" style={{ justifyContent: 'space-between' }}><span className="small muted">{j.client || 'Internal'}</span>{j.status !== 'open' && <span className="stage-tag" data-stage="hold">{j.status}</span>}</div>
               <h3>{j.title}</h3>
-              <p className="meta">{j.location.label}, {j.workMode}. {j.expMin} to {j.expMax} years, up to {j.ctcMaxLpa} LPA.</p>
+              <p className="meta">{j.location.label}, {j.workMode}. {j.expMin} to {j.expMax} years.</p>
+              <p className="meta"><span className="budget-chip">Budget {fmtBudget(j)}</span>{j.openings > 1 && <> · {j.openings} openings</>}</p>
               <div className="chips">{j.mustSkills.slice(0, 5).map((s) => <span key={s} className="chip">{s}</span>)}</div>
               <div className="foot">
                 <span><b>{cs.length}</b> <span className="muted">profiles</span></span>

@@ -1,4 +1,4 @@
-import { BriefcaseBusiness, Columns3, LayoutDashboard, Menu, MessagesSquare, Settings2, Users } from 'lucide-react'
+import { BriefcaseBusiness, Columns3, LayoutDashboard, Menu, MessagesSquare, Receipt, Settings2, UserCheck, Users } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 import { CandidateDrawer } from './views/CandidateDrawer'
 import { PressFilter, ToastHost, useToast } from './components/ui'
@@ -6,7 +6,10 @@ import { aiStatus } from './lib/ai'
 import { href, useRoute, type Route } from './lib/router'
 import { ensureTemplates, loadSample } from './lib/sample'
 import { TARGET } from './lib/runtime'
-import { initStore, onStoreError, useStore } from './lib/store'
+import { getState, initStore, onStoreError, setMe, useStore, wipeAll } from './lib/store'
+import { ensureBilling } from './lib/billing'
+import { Billing } from './views/Billing'
+import { Panelists } from './views/Panelists'
 import { Admin } from './views/Admin'
 import { Candidates } from './views/Candidates'
 import { Dashboard } from './views/Dashboard'
@@ -22,8 +25,11 @@ const NAV: { r: Route; label: string; icon: typeof Users }[] = [
   { r: { name: 'candidates' }, label: 'Tracker', icon: Users },
   { r: { name: 'pipeline' }, label: 'Pipeline', icon: Columns3 },
   { r: { name: 'outreach' }, label: 'Outreach', icon: MessagesSquare },
+  { r: { name: 'panelists' }, label: 'Panelists', icon: UserCheck },
   { r: { name: 'admin' }, label: 'Admin', icon: Settings2 },
+  { r: { name: 'billing' }, label: 'Billing', icon: Receipt },
 ]
+const ADMIN_ONLY = new Set(['admin', 'billing'])
 
 export default function App() {
   return <ToastHost><Shell /></ToastHost>
@@ -41,6 +47,9 @@ function Shell() {
   const secrets = useStore((s) => s.secrets)
   const nJobs = useStore((s) => Object.values(s.jobs).filter((j) => j.status === 'open').length)
   const nCands = useStore((s) => Object.keys(s.candidates).length)
+  const me = useStore((s) => s.me)
+  const trialEnds = useStore((s) => s.config.billing.trialStart + s.config.billing.trialDays * 864e5)
+  const trialLeft = trialEnds - Date.now()
   const [ai, setAi] = useState<{ ok: boolean; via: string } | null>(null)
 
   useEffect(() => { onStoreError((m) => toast(m, { kind: 'error' })); initStore() }, [toast])
@@ -48,11 +57,19 @@ function Shell() {
     if (!ready || offline) return
     ensureTemplates()
     // the deployed demo starts filled: sample jobs and profiles on first visit (Admin → Delete all data clears them for good)
-    let seeded = true
-    try { seeded = !!localStorage.getItem('hl-seeded') } catch { /* storage blocked */ }
-    if (TARGET === 'web' && !seeded && !nJobs && !nCands) { try { localStorage.setItem('hl-seeded', '1') } catch { /* ignore */ } loadSample() }
+    let seeded = true, v1 = false
+    try { seeded = !!localStorage.getItem('hl-seeded-v2'); v1 = !!localStorage.getItem('hl-seeded') } catch { /* storage blocked */ }
+    if (TARGET !== 'web' || seeded) return
+    try { localStorage.setItem('hl-seeded-v2', '1'); localStorage.setItem('hl-seeded', '1') } catch { /* ignore */ }
+    const st = getState()
+    const cs = Object.values(st.candidates), js = Object.values(st.jobs)
+    // replace the first demo set with the current one, but only when nothing real has been added
+    const onlyDemo = cs.every((c) => /\.demo@example\.com$/.test(c.email)) && js.every((j) => /^Example /.test(j.client || ''))
+    if (!js.length && !cs.length && !v1) loadSample()
+    else if (v1 && onlyDemo && (js.length || cs.length)) wipeAll().then(async () => { await loadSample(); await ensureTemplates() })
   }, [ready, offline]) // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => { aiStatus().then(setAi) }, [secrets.aiProvider])
+  useEffect(() => { if (ready && !offline) ensureBilling() }, [ready, offline])
   useEffect(() => { setOpen(false) }, [route])
   useEffect(() => { document.title = `${cfg.productName} · ${titleOf(route)}` }, [route, cfg.productName])
 
@@ -70,15 +87,22 @@ function Shell() {
             {cfg.productName}
           </a>
           <div className="nav">
-            {NAV.map(({ r, label, icon: I }) => (
+            {NAV.filter(({ r }) => me === 'admin' || !ADMIN_ONLY.has(r.name)).map(({ r, label, icon: I }) => (
               <a key={r.name} href={href(r)} aria-current={active(r) ? 'page' : undefined}>
                 <I size={16} aria-hidden />{label}
                 {r.name === 'jobs' && nJobs > 0 && <span className="count">{nJobs}</span>}
                 {r.name === 'candidates' && nCands > 0 && <span className="count">{nCands}</span>}
+                {r.name === 'billing' && trialLeft > 0 && <span className="count">trial</span>}
               </a>
             ))}
           </div>
           <div className="rail-foot">
+            <label className="me-switch">Working as
+              <select className="select" value={me} onChange={(e) => setMe(e.target.value)}>
+                <option value="admin">Super admin</option>
+                {cfg.recruiters.map((r) => <option key={r.id} value={r.id}>{r.name}</option>)}
+              </select>
+            </label>
             <div className="status-line"><b>Data</b><span>{backend === 'db' ? (offline ? 'shared, reconnecting' : 'shared with your team') : backend === 'local' ? 'saved in this browser' : 'connecting'}</span></div>
             <div className="status-line"><b>AI</b><span>{ai ? ai.via : 'checking'}</span></div>
             <div>{cfg.companyName}</div>
@@ -97,6 +121,8 @@ function Shell() {
             {route.name === 'pipeline' && <Pipeline />}
             {route.name === 'outreach' && <Outreach />}
             {route.name === 'admin' && <Admin />}
+            {route.name === 'panelists' && <Panelists />}
+            {route.name === 'billing' && (me === 'admin' ? <Billing /> : <p className="small">Billing is for the super admin. Switch “Working as” in the sidebar.</p>)}
           </main>
         </div>
       </div>
@@ -105,7 +131,7 @@ function Shell() {
   )
 }
 
-const titleOf = (r: Route) => ({ dashboard: 'Dashboard', jobs: 'Jobs', job: 'Job', candidates: 'Tracker', pipeline: 'Pipeline', outreach: 'Outreach', admin: 'Admin' })[r.name]
+const titleOf = (r: Route) => ({ dashboard: 'Dashboard', jobs: 'Jobs', job: 'Job', candidates: 'Tracker', pipeline: 'Pipeline', outreach: 'Outreach', admin: 'Admin', panelists: 'Panelists', billing: 'Billing' })[r.name]
 
 export function Mark({ size = 26 }: { size?: number }) {
   return <svg className="wordmark-mark" width={size} height={size} viewBox="0 0 26 26" aria-hidden>

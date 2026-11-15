@@ -52,6 +52,17 @@ export async function sendEmail(to: string, subject: string, body: string) {
   return j
 }
 
+export async function sendEmailWithFiles(to: string, subject: string, body: string, attachments: { filename: string; content: string }[]) {
+  const s = getState().secrets
+  const r = await fetch(`${api()}/api/email`, {
+    method: 'POST', headers: { 'content-type': 'application/json', ...(s.resendKey ? { 'x-resend-key': s.resendKey } : {}) },
+    body: JSON.stringify({ to, subject, text: body, from: s.emailFrom || undefined, attachments }),
+  })
+  const j = await r.json().catch(() => ({}))
+  if (!r.ok) throw new Error(j.error || (r.status === 413 ? 'The attachments are too large to send. Download the pack and attach it yourself.' : `Email send failed (${r.status})`))
+  return j
+}
+
 export async function fireWebhook(event: string, payload: unknown) {
   const s = getState().secrets
   if (!s.webhookUrl || TARGET !== 'web') return false

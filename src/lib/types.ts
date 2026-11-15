@@ -1,16 +1,31 @@
-export type Stage = 'new' | 'contacted' | 'l1' | 'l2' | 'selected' | 'rejected' | 'hold'
+/* Stages are data: the fixed outcomes below plus any number of interview levels
+ * (L1, L2, L3 by default) that the super admin can rename or extend in Admin. */
+export type Stage = string
+export interface Level { id: string; label: string }
 
-export const STAGES: { id: Stage; label: string }[] = [
-  { id: 'new', label: 'New' },
-  { id: 'contacted', label: 'Contacted' },
+export const DEFAULT_LEVELS: Level[] = [
   { id: 'l1', label: 'L1 screening' },
-  { id: 'l2', label: 'L2 screening' },
-  { id: 'selected', label: 'Selected' },
-  { id: 'hold', label: 'On hold' },
-  { id: 'rejected', label: 'Rejected' },
+  { id: 'l2', label: 'L2 technical' },
+  { id: 'l3', label: 'L3 manager / HR' },
 ]
 
-export const stageLabel = (s: Stage) => STAGES.find((x) => x.id === s)?.label ?? s
+export function buildStages(levels: Level[]): { id: Stage; label: string; kind: 'start' | 'level' | 'outcome' | 'park' }[] {
+  return [
+    { id: 'new', label: 'New', kind: 'start' },
+    { id: 'contacted', label: 'Contacted', kind: 'start' },
+    ...levels.map((l) => ({ ...l, kind: 'level' as const })),
+    { id: 'selected', label: 'Selected', kind: 'outcome' },
+    { id: 'offered', label: 'Offered', kind: 'outcome' },
+    { id: 'joined', label: 'Joined', kind: 'outcome' },
+    { id: 'declined', label: 'Declined', kind: 'outcome' },
+    { id: 'hold', label: 'On hold', kind: 'park' },
+    { id: 'rejected', label: 'Rejected', kind: 'park' },
+  ]
+}
+let current = buildStages(DEFAULT_LEVELS)
+export const setStageLevels = (levels: Level[]) => { current = buildStages(levels) }
+export const getStages = () => current
+export const stageLabel = (s: Stage) => current.find((x) => x.id === s)?.label ?? s
 
 export interface Place { label: string; lat?: number; lng?: number }
 
@@ -23,7 +38,8 @@ export interface Job {
   workMode: 'onsite' | 'hybrid' | 'remote'
   expMin: number
   expMax: number
-  ctcMaxLpa: number // budget, lakhs per annum
+  ctcMinLpa?: number // budget range, lakhs per annum
+  ctcMaxLpa: number
   noticeMaxDays: number
   openings: number
   mustSkills: string[]
@@ -32,6 +48,7 @@ export interface Job {
   status: 'open' | 'paused' | 'closed'
   ideal?: IdealProfile
   calibration?: Calibration
+  ownerId?: string
   createdAt: number
   updatedAt: number
 }
@@ -101,8 +118,66 @@ export interface Candidate {
   remarks: Remark[]
   interviewAt?: number
   meetLink?: string
+  ownerId?: string // recruiter who added the profile
+  employment?: Employment[]
+  selfRatings?: Record<string, number> // JD skill -> 1..5, as the candidate rates themselves
+  interviews?: Interview[]
+  hasOriginal?: boolean // original resume file kept in this browser
   createdAt: number
   updatedAt: number
+}
+
+export interface Employment { company: string; role: string; from: string; to: string } // YYYY-MM, to may be 'present'
+
+export interface Interview {
+  id: string
+  round: Stage
+  at: number
+  panelistIds: string[]
+  meetLink?: string
+  result: 'pending' | 'select' | 'reject' | 'hold'
+  rating?: number // 1..5
+  feedback?: string
+  feedbackBy?: string
+  createdAt: number
+}
+
+export interface Panelist {
+  id: string
+  name: string
+  email: string
+  phone: string
+  calendly: string // booking link only; no Calendly API calls
+  expertise: string
+  active: boolean
+  createdAt: number
+  updatedAt: number
+}
+
+export interface Recruiter { id: string; name: string; email: string }
+
+export interface Invoice {
+  id: string
+  number: string
+  date: number
+  periodFrom: number
+  periodTo: number
+  description: string
+  amount: number
+  taxPct: number
+  status: 'due' | 'paid'
+}
+
+export interface Billing {
+  planName: string
+  price: number // per month, INR, before tax
+  taxPct: number
+  trialDays: number // 3..7
+  trialStart: number
+  seller: { name: string; address: string; gstin: string }
+  buyer: { name: string; address: string; gstin: string; email: string }
+  invoices: Invoice[]
+  saved?: boolean // set once the trial start has been written, so a reload never restarts the trial
 }
 
 export interface Template {
@@ -120,6 +195,10 @@ export interface AppConfig {
   careersUrl: string
   weights: MatchBreakdown // sum 1
   shortlistAt: number // score threshold
+  bands: { potential: number; near: number } // >= potential green, >= near orange, below red
+  levels: Level[]
+  recruiters: Recruiter[]
+  billing: Billing
 }
 
 export interface Secrets {

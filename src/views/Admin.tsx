@@ -10,6 +10,7 @@ import { exportAll, getState, importAll, setConfig, setSecrets, useStore, wipeAl
 import type { MatchBreakdown, Secrets } from '../lib/types'
 import { rescore } from '../lib/match'
 import { put } from '../lib/store'
+import { BandsEditor, LevelsEditor, PanelistAnalytics, RecruiterAnalytics, RecruitersEditor } from './AdminTeam'
 
 const WLABEL: Record<keyof MatchBreakdown, string> = { skills: 'Skills', experience: 'Experience', ctc: 'CTC fit', location: 'Location', notice: 'Notice period' }
 
@@ -43,6 +44,12 @@ export function Admin() {
     ? 'This preview runs AI through Claude and saves data for your team automatically. Keys you enter here are kept in this browser and take effect on the deployed app, where the server can call WhatsApp, email, Maps and other AI providers.'
     : 'Keys stay in this browser and travel only to this app\'s own server routes, which forward them to the provider. Leave a field blank to use the key set on the server instead.'
 
+  const me = useStore((s) => s.me)
+  if (me !== 'admin') return <>
+    <TopBar title="Admin" />
+    <p className="small" style={{ maxWidth: '60ch' }}>Admin is for the super admin. Switch “Working as” in the sidebar to Super admin to see team analytics, levels, keys and billing.</p>
+  </>
+
   return <>
     <TopBar title="Admin" />
     <section className="section" aria-labelledby="h-ws">
@@ -54,6 +61,12 @@ export function Admin() {
         <Field label="Careers or apply link" hint="Added to every job post"><Input type="url" inputMode="url" defaultValue={cfg.careersUrl} onBlur={(e) => e.target.value !== cfg.careersUrl && setConfig({ careersUrl: e.target.value.trim() })} /></Field>
       </div>
     </section>
+
+    <RecruiterAnalytics />
+    <PanelistAnalytics />
+    <RecruitersEditor />
+    <LevelsEditor />
+    <BandsEditor />
 
     <section className="section" aria-labelledby="h-match">
       <div className="section-head"><h2 id="h-match">How the match percentage is weighed</h2><p>Each part scores 0 to 100%; these weights add them up</p></div>

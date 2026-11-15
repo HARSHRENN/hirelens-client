@@ -44,3 +44,5 @@ export function debounce<T extends (...a: any[]) => void>(fn: T, ms: number) {
 
 export const lsGet = <T,>(k: string, d: T): T => { try { const v = localStorage.getItem(k); return v ? { ...d, ...JSON.parse(v) } : d } catch { return d } }
 export const lsSet = (k: string, v: unknown) => { try { localStorage.setItem(k, JSON.stringify(v)) } catch { /* storage unavailable */ } }
+
+export const fmtBudget = (j: { ctcMinLpa?: number; ctcMaxLpa: number }) => j.ctcMinLpa && j.ctcMinLpa < j.ctcMaxLpa ? `${+j.ctcMinLpa.toFixed(2)}–${+j.ctcMaxLpa.toFixed(2)} LPA` : `up to ${+j.ctcMaxLpa.toFixed(2)} LPA`

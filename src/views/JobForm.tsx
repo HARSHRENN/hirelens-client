@@ -31,7 +31,7 @@ export function JobForm({ job, onClose, onSaved }: { job?: Job; onClose: () => v
       const r = await completeJson<{ description: string; mustSkills: string[]; niceSkills: string[]; expMin: number; expMax: number; tech: string }>(
         `Write a crisp job description for an Indian hiring market.
 Role: ${j.title}. Hiring company: ${j.client || company}. Location: ${j.location.label || 'not given'} (${j.workMode}).
-Experience ${j.expMin}-${j.expMax} years, budget up to ${j.ctcMaxLpa} LPA, notice up to ${j.noticeMaxDays} days.
+Experience ${j.expMin}-${j.expMax} years, budget ${j.ctcMinLpa ? j.ctcMinLpa + '-' : 'up to '}${j.ctcMaxLpa} LPA, notice up to ${j.noticeMaxDays} days.
 Recruiter notes: ${j.description || 'none'}
 Return {"description": string (plain text, 5-8 short lines: what they will do, then what they need; no headings, no emoji, no marketing fluff),
 "mustSkills": string[] (4-6), "niceSkills": string[] (2-4), "expMin": number, "expMax": number,
@@ -91,7 +91,8 @@ Return {"title": string, "client": string|null, "location": string|null, "workMo
         <div className="row span-2" style={{ gap: 'var(--space-md)', alignItems: 'start' }}>
           <Field label="Min exp (yrs)"><Input type="number" inputMode="decimal" min={0} step={0.5} value={j.expMin} onChange={(e) => set({ expMin: +e.target.value })} /></Field>
           <Field label="Max exp (yrs)"><Input type="number" inputMode="decimal" min={0} step={0.5} value={j.expMax} onChange={(e) => set({ expMax: +e.target.value })} /></Field>
-          <Field label="Budget (LPA)"><Input type="number" inputMode="decimal" min={0} step={0.5} value={j.ctcMaxLpa} onChange={(e) => set({ ctcMaxLpa: +e.target.value })} /></Field>
+          <Field label="Budget from (LPA)" hint="Lowest CTC the client will pay"><Input type="number" inputMode="decimal" min={0} step={0.5} value={j.ctcMinLpa ?? ''} onChange={(e) => set({ ctcMinLpa: e.target.value === '' ? undefined : +e.target.value })} /></Field>
+          <Field label="Budget up to (LPA)" hint="Expected CTC above this lowers the match"><Input type="number" inputMode="decimal" min={0} step={0.5} value={j.ctcMaxLpa} onChange={(e) => set({ ctcMaxLpa: +e.target.value })} /></Field>
           <Field label="Max notice (days)"><Input type="number" inputMode="numeric" min={0} step={15} value={j.noticeMaxDays} onChange={(e) => set({ noticeMaxDays: +e.target.value })} /></Field>
           <Field label="Openings"><Input type="number" inputMode="numeric" min={1} value={j.openings} onChange={(e) => set({ openings: +e.target.value })} /></Field>
         </div>
