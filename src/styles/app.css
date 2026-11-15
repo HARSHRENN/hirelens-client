@@ -429,41 +429,35 @@ dl.facts dd.fig { font-weight: 400; }
 .ok-text svg, .err-text svg { vertical-align: -1px; }
 
 /* ---------- account pages ---------- */
-.auth { min-height: 100dvh; display: grid; grid-template-columns: minmax(320px, 0.9fr) minmax(0, 1.1fr); background: var(--color-paper); }
-.auth-brand { position: relative; display: flex; flex-direction: column; justify-content: space-between; gap: var(--space-xl); padding: var(--space-xl); background: var(--color-ink); color: #fff; overflow: hidden; }
-.auth-brand::after { content: ""; position: absolute; right: -120px; bottom: -120px; width: 360px; height: 360px; border-radius: 50%; background: radial-gradient(circle at 30% 30%, rgb(221 245 69 / .35), transparent 60%); pointer-events: none; }
-.auth-brand .wordmark { color: #fff; padding: 0; }
-.auth-brand .wordmark-mark rect:first-child { fill: #fff; }
-.auth-brand .wordmark-mark circle { fill: var(--color-ink); }
-.auth-pitch { display: grid; gap: var(--space-md); max-width: 44ch; position: relative; z-index: 1; }
-.auth-kicker { margin: 0; font-size: var(--text-xs); letter-spacing: .08em; text-transform: uppercase; color: var(--color-accent); }
-.auth-line { margin: 0; font-size: var(--text-xl); line-height: 1.35; letter-spacing: -0.02em; }
-.auth-points { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--space-xs); color: rgb(255 255 255 / .82); font-size: var(--text-sm); }
-.auth-points li { display: flex; gap: var(--space-xs); align-items: center; }
-.auth-points svg { color: var(--color-accent); flex: none; }
-.auth-fine { margin: 0; font-size: var(--text-xs); color: rgb(255 255 255 / .55); position: relative; z-index: 1; }
-.auth-main { display: grid; place-content: center; gap: var(--space-md); padding: var(--space-xl) var(--space-lg); }
-.auth-card { width: min(460px, 100%); display: grid; gap: var(--space-md); padding: var(--space-xl); background: var(--color-cotton); border: 1px solid var(--color-rule); border-radius: var(--radius-card); }
-.auth-card h1 { font-size: var(--text-2xl); font-weight: 400; letter-spacing: -0.035em; }
+.auth { min-height: 100dvh; display: flex; flex-direction: column; background:
+  radial-gradient(60rem 30rem at 85% -10%, rgb(221 245 69 / .28), transparent 60%),
+  radial-gradient(50rem 30rem at -10% 110%, rgb(92 155 230 / .16), transparent 60%), var(--color-paper); }
+.auth-top { display: flex; align-items: center; justify-content: space-between; gap: var(--space-md); padding: var(--space-md) clamp(16px, 4vw, 48px); }
+.auth-top .wordmark { padding: 0; font-size: 1.25rem; }
+.auth-nav { display: flex; align-items: center; gap: var(--space-md); font-size: var(--text-sm); }
+.auth-nav a:not(.btn) { color: var(--color-ink-2); text-decoration: none; }
+.auth-nav a:not(.btn):hover { color: var(--color-ink); text-decoration: underline; }
+.auth-main { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: var(--space-md); padding: var(--space-lg) var(--space-md) var(--space-xl); }
+.auth-card { width: min(480px, 100%); display: grid; gap: var(--space-md); padding: clamp(24px, 4vw, 40px); background: var(--color-cotton); border: 1px solid var(--color-rule); border-radius: var(--radius-card); box-shadow: 0 1px 2px rgb(6 20 46 / .04), 0 24px 48px -24px rgb(6 20 46 / .18); }
+.auth-card h1 { font-size: var(--text-2xl); font-weight: 400; letter-spacing: -0.035em; margin: 0; }
 .auth-sub { margin: -8px 0 0; color: var(--color-muted); font-size: var(--text-sm); }
-.auth-mark-sm { display: none; padding: 0; font-size: 1.125rem; }
-.auth-form { display: grid; gap: var(--space-md); }
-.auth-form .form-grid { gap: var(--space-md); }
-.auth-form .btn--ink { width: 100%; min-height: 46px; }
-.auth-agree { align-items: flex-start; color: var(--color-muted); }
+.auth-form { display: grid; gap: 14px; }
+.auth-form .form-grid { gap: 14px; }
+.auth .field .hint { min-height: 0; }
+.auth .field .hint:empty { display: none; }
+.auth-form .btn--ink { width: 100%; min-height: 46px; margin-top: 4px; }
+.auth-agree { align-items: flex-start; color: var(--color-muted); flex-wrap: nowrap; gap: var(--space-xs); }
 .auth-agree input { margin-top: 3px; }
 .auth-foot { margin: 0; text-align: center; font-size: var(--text-sm); color: var(--color-muted); }
+.auth-points { list-style: none; margin: var(--space-sm) 0 0; padding: 0; display: flex; flex-wrap: wrap; justify-content: center; gap: 6px 20px; color: var(--color-muted); font-size: var(--text-xs); }
+.auth-points li { display: inline-flex; gap: 6px; align-items: center; }
+.auth-points svg { color: var(--match-good); flex: none; }
+.auth-bottom { padding: var(--space-md); text-align: center; font-size: var(--text-xs); color: var(--color-muted); }
 .auth-notice { padding: var(--space-sm) var(--space-md); border-radius: var(--radius-input); font-size: var(--text-sm); background: var(--color-paper-2); border: 1px solid var(--color-rule); }
 .auth-notice--error { background: var(--match-low-bg); border-color: color-mix(in oklab, var(--match-low) 35%, transparent); color: var(--match-low-ink); }
 .auth-notice--ok { background: var(--match-good-bg); border-color: color-mix(in oklab, var(--match-good) 35%, transparent); color: var(--match-good-ink); }
 .auth-sent { display: grid; justify-items: center; gap: var(--space-sm); text-align: center; color: var(--color-muted); }
-@media (max-width: 860px) {
-  .auth { grid-template-columns: 1fr; }
-  .auth-brand { display: none; }
-  .auth-mark-sm { display: flex; }
-  .auth-main { padding: var(--space-lg) var(--space-md); place-content: start center; }
-  .auth-card { padding: var(--space-lg); }
-}
+@media (max-width: 560px) { .auth-nav a:not(.btn) { display: none; } .auth-main { justify-content: flex-start; padding-top: var(--space-sm); } }
 
 /* ---------- platform admin ---------- */
 .admin-shell .rail { background: var(--color-paper-2); }
@@ -474,6 +468,4 @@ dl.facts dd.fig { font-weight: 400; }
 .trial-bar[data-warn] i { background: var(--match-near); }
 .search { display: flex; align-items: center; gap: 8px; }
 .search .input { flex: 1; }
-.auth-agree { flex-wrap: nowrap; gap: var(--space-xs); }
-.auth--solo { grid-template-columns: 1fr; }
 .auth--solo .field { display: grid; gap: 6px; }

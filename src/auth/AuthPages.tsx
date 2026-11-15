@@ -24,29 +24,30 @@ export async function landAfterSignIn() {
 function Shell({ title, sub, children, foot }: { title: string; sub?: ReactNode; children: ReactNode; foot?: ReactNode }) {
   const [name, setName] = useState('HireLens')
   useEffect(() => { loadConfig().then((c) => c.productName && setName(c.productName)); document.title = `${title} · HireLens` }, [title])
+  const here = location.pathname
   return <div className="auth">
-    <aside className="auth-brand" aria-hidden>
-      <a className="wordmark auth-mark" href="/"><Mark size={30} />{name}</a>
-      <div className="auth-pitch">
-        <p className="auth-kicker">AI recruitment workspace</p>
-        <p className="auth-line">Drop resumes in any format. Get a match score you can explain, a tracker your client can read, and interviews that schedule and remind themselves.</p>
-        <ul className="auth-points">
-          <li><Check size={15} />Resume reading and match % against each JD</li>
-          <li><Check size={15} />Tracker, panel interviews, client-ready resumes</li>
-          <li><Check size={15} />Invites and reminders emailed for you</li>
-        </ul>
-      </div>
-      <p className="auth-fine">Built by AlphacodeAI, Mumbai</p>
-    </aside>
+    <header className="auth-top">
+      <a className="wordmark" href="/"><Mark size={28} />{name}</a>
+      <nav className="auth-nav" aria-label="Site">
+        <a href="/demo">Demo</a>
+        {here !== '/login' && <a href="/login">Log in</a>}
+        {here !== '/signup' && <a className="btn btn--ink btn--sm" href="/signup">Start free trial</a>}
+      </nav>
+    </header>
     <main className="auth-main">
       <div className="auth-card">
-        <a className="wordmark auth-mark-sm" href="/"><Mark size={26} />{name}</a>
         <h1>{title}</h1>
         {sub && <p className="auth-sub">{sub}</p>}
         {children}
       </div>
       {foot && <p className="auth-foot">{foot}</p>}
+      <ul className="auth-points" aria-label="What you get">
+        <li><Check size={14} />Resume reading and match % for every JD</li>
+        <li><Check size={14} />Tracker, panel interviews, client-ready resumes</li>
+        <li><Check size={14} />Interview invites and reminders emailed for you</li>
+      </ul>
     </main>
+    <footer className="auth-bottom">Built by AlphacodeAI, Mumbai</footer>
   </div>
 }
 
