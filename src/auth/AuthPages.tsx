@@ -29,8 +29,8 @@ function Shell({ title, sub, children, foot }: { title: string; sub?: ReactNode;
     <header className="auth-top">
       <a className="wordmark" href="/"><Mark size={28} />{name}</a>
       <nav className="auth-nav" aria-label="Site">
-        <a href="/demo">Demo</a>
-        {here !== '/login' && <a href="/login">Log in</a>}
+        <a className="btn btn--ink btn--sm" href="/demo">Demo</a>
+        {here !== '/login' && <a className="btn btn--ink btn--sm" href="/login">Log in</a>}
         {here !== '/signup' && <a className="btn btn--ink btn--sm" href="/signup">Start free trial</a>}
       </nav>
     </header>
