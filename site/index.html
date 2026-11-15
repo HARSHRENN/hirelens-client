@@ -280,6 +280,45 @@ html[data-preloader] .pre{display:grid}
 .pre .cnt{font-size:44px;font-weight:300;letter-spacing:-.05em;font-variant-numeric:tabular-nums}
 .pre .cap{font-size:14px;color:var(--slate)}
 
+/* 21st.dev elements, rebuilt in plain CSS + GSAP for this page:
+   "Scroll Stacking Cards" by Aakash Mehra, "Text Reveal FAQs" by ruixen.ui */
+.deck-stage{display:grid;gap:20px;padding-inline:var(--gutter)}
+.dcard{grid-template-columns:minmax(0,1.1fr) minmax(0,1fr);gap:12px;border-radius:28px;box-shadow:0 50px 90px -40px rgb(6 20 46 / .35)}
+.dcard .panel{min-height:420px;padding:28px;grid-template-rows:auto auto 1fr;align-content:stretch}
+.dcard .chart,.dcard .hline{align-self:end}
+.dcard .panel .val{font-size:clamp(28px,3vw,40px)}
+.dcard .chart,.dcard .hline{height:200px}
+.dcard .hline .base{top:96px}.dcard .hline .run{top:95px}.dcard .hline .mk{top:88px}.dcard .hline .t{top:120px}
+.dcard .body{align-content:center;gap:14px;padding:28px 32px}
+.dcard h3{font-size:clamp(28px,3.2vw,44px)}
+.dcard p{font-size:18px;color:var(--slate);max-width:36ch}
+.dno{justify-self:start;font-size:13px;letter-spacing:.04em;color:var(--slate);border:1px solid var(--line);border-radius:var(--r-pill);padding:4px 10px;font-variant-numeric:tabular-nums}
+.dcard .dim{position:absolute;inset:0;background:var(--ink);opacity:0;pointer-events:none;border-radius:inherit}
+html.deck-live .deck{height:calc(var(--n,3) * 100svh)}
+html.deck-live .deck-stage{position:sticky;top:0;height:100svh;place-items:center;perspective:1800px;overflow:hidden}
+html.deck-live .dcard{grid-area:1/1;width:min(100%,1180px);margin-top:4svh;transform-origin:50% 25%;will-change:transform,filter}
+@media (max-width:768px){.dcard{grid-template-columns:1fr}.dcard .panel{min-height:220px}.dcard .chart,.dcard .hline{height:120px}.dcard .hline .base{top:56px}.dcard .hline .run{top:55px}.dcard .hline .mk{top:48px}.dcard .hline .t{top:80px}.dcard .body{padding:14px 18px 20px}.dcard p{font-size:16px}}
+
+.faq{display:grid;grid-template-columns:minmax(0,2fr) minmax(0,3fr);gap:48px;align-items:start}
+.faq-l{display:grid;gap:20px;position:sticky;top:96px}
+.faq-l h2{font-size:clamp(36px,4vw,56px)}
+.faq-l a{color:var(--ink);text-decoration-color:var(--blue-500);text-underline-offset:.2em}
+.qa{border-bottom:1px dashed var(--dash)}
+.qa:first-child{border-top:1px dashed var(--dash)}
+.qa summary{list-style:none;display:flex;align-items:center;justify-content:space-between;gap:20px;padding:24px 0;font-size:21px;letter-spacing:-.02em;cursor:pointer}
+.qa summary::-webkit-details-marker{display:none}
+.qa summary:focus-visible{outline:2px solid var(--focus);outline-offset:4px;border-radius:8px}
+.qa summary i{position:relative;flex:none;width:36px;height:36px;border-radius:50%;border:1px solid var(--line);background:#fff;transition:background var(--dur-short) var(--ease-out),border-color var(--dur-short) var(--ease-out),transform .4s var(--ease-out)}
+.qa summary i::before,.qa summary i::after{content:"";position:absolute;left:50%;top:50%;width:12px;height:1.5px;margin:-.75px 0 0 -6px;background:var(--ink);border-radius:1px}
+.qa summary i::after{transform:rotate(90deg);transition:transform .4s var(--ease-out)}
+.qa[open] summary i{background:var(--lime);border-color:var(--lime);transform:rotate(180deg)}
+.qa[open] summary i::after{transform:rotate(0)}
+@media (hover:hover){.qa summary:hover i{border-color:var(--ink)}}
+.qa p{margin:0;padding:0 56px 26px 0;color:var(--slate);font-size:17px;max-width:60ch}
+.qa p .bw{display:inline-block;white-space:pre}
+@media (max-width:1024px){.faq{grid-template-columns:1fr;gap:32px}.faq-l{position:static}}
+@media (max-width:560px){.qa summary{font-size:18px}.qa p{padding-right:0}}
+
 /* reveal starting states only with JS; content is visible without it */
 .js [data-reveal]{opacity:0;transform:translateY(48px)}
 @media (prefers-reduced-motion:reduce){*,*::before,*::after{animation-duration:.01ms!important;transition-duration:.01ms!important;scroll-behavior:auto!important}.dash{--tilt:0!important}}
@@ -415,10 +454,13 @@ html[data-preloader] .pre{display:grid}
   <hr class="rule">
   <div class="head"><span class="pill"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3"><circle cx="8" cy="8" r="6"/><path d="M8 5v3l2 2"/></svg>When it helps</span>
     <div class="h"><h2 data-lines>The three hiring weeks we hear about most.</h2></div></div>
-  <div class="rail">
-    <article class="card sit" data-reveal><div class="panel"><span class="cap">Example, one role</span><span class="val">Hundreds of resumes</span><div class="chart" data-bars aria-hidden="true"><i style="height:100%;background:var(--blue-600)"></i><i style="height:82%;background:var(--blue-500)"></i><i style="height:64%;background:var(--blue-400)"></i><i style="height:46%"></i><i style="height:30%;background:var(--blue-200)"></i><i style="height:18%;background:var(--blue-100)"></i></div></div><div class="body"><span class="eyebrowless">Bulk drive</span><h3>The job portal sent everyone</h3><p>Ranked by fit in minutes, so the first calls go to the right people.</p></div></article>
-    <article class="card sit" data-reveal><div class="panel"><span class="cap">Example, rare skill</span><span class="val">Three that fit</span><div class="chart" data-bars aria-hidden="true"><i style="height:20%;background:var(--blue-200)"></i><i style="height:28%;background:var(--blue-200)"></i><i style="height:94%;background:var(--blue-600)"></i><i style="height:22%;background:var(--blue-200)"></i><i style="height:88%;background:var(--blue-600)"></i><i style="height:18%;background:var(--blue-200)"></i><i style="height:30%;background:var(--blue-200)"></i><i style="height:91%;background:var(--blue-600)"></i><i style="height:24%;background:var(--blue-200)"></i></div></div><div class="body"><span class="eyebrowless">Niche role</span><h3>One ideal profile, more like them</h3><p>The shortlist becomes an ideal candidate, and the next-closest profiles surface.</p></div></article>
-    <article class="card sit" data-reveal><div class="panel"><span class="cap">Example, mid-search</span><span class="val">Requirement changed</span><div class="hline" aria-hidden="true"><span class="base"></span><span class="run" data-run></span><span class="mk" style="left:6%"></span><span class="mk" style="left:44%"></span><span class="mk l" style="left:76%"></span><span class="t" style="left:6%">Call</span><span class="t" style="left:44%">Summary</span><span class="t" style="left:76%">Re-scored</span></div></div><div class="body"><span class="eyebrowless">Calibration call</span><h3>The manager wants something else</h3><p>Notes become a requirement in English, Hindi or Marathi, and every profile re-scores.</p></div></article>
+  </section>
+
+<section class="deck" id="deck" aria-label="Three hiring weeks">
+  <div class="deck-stage">
+    <article class="card sit dcard"><div class="panel"><span class="cap">Example, one role</span><span class="val">Hundreds of resumes</span><div class="chart" data-bars aria-hidden="true"><i style="height:100%;background:var(--blue-600)"></i><i style="height:82%;background:var(--blue-500)"></i><i style="height:64%;background:var(--blue-400)"></i><i style="height:46%"></i><i style="height:30%;background:var(--blue-200)"></i><i style="height:18%;background:var(--blue-100)"></i></div></div><div class="body"><span class="dno">01 / 03</span><span class="eyebrowless">Bulk drive</span><h3>The job portal sent everyone</h3><p>Ranked by fit in minutes, so the first calls go to the right people.</p></div><span class="dim" aria-hidden="true"></span></article>
+    <article class="card sit dcard"><div class="panel"><span class="cap">Example, rare skill</span><span class="val">Three that fit</span><div class="chart" data-bars aria-hidden="true"><i style="height:20%;background:var(--blue-200)"></i><i style="height:28%;background:var(--blue-200)"></i><i style="height:94%;background:var(--blue-600)"></i><i style="height:22%;background:var(--blue-200)"></i><i style="height:88%;background:var(--blue-600)"></i><i style="height:18%;background:var(--blue-200)"></i><i style="height:30%;background:var(--blue-200)"></i><i style="height:91%;background:var(--blue-600)"></i><i style="height:24%;background:var(--blue-200)"></i></div></div><div class="body"><span class="dno">02 / 03</span><span class="eyebrowless">Niche role</span><h3>One ideal profile, more like them</h3><p>The shortlist becomes an ideal candidate, and the next-closest profiles surface.</p></div><span class="dim" aria-hidden="true"></span></article>
+    <article class="card sit dcard"><div class="panel"><span class="cap">Example, mid-search</span><span class="val">Requirement changed</span><div class="hline" aria-hidden="true"><span class="base"></span><span class="run" data-run></span><span class="mk" style="left:6%"></span><span class="mk" style="left:44%"></span><span class="mk l" style="left:76%"></span><span class="t" style="left:6%">Call</span><span class="t" style="left:44%">Summary</span><span class="t" style="left:76%">Re-scored</span></div></div><div class="body"><span class="dno">03 / 03</span><span class="eyebrowless">Calibration call</span><h3>The manager wants something else</h3><p>Notes become a requirement in English, Hindi or Marathi, and every profile re-scores.</p></div><span class="dim" aria-hidden="true"></span></article>
   </div>
 </section>
 
@@ -441,6 +483,13 @@ html[data-preloader] .pre{display:grid}
   </div>
 </section>
 
+<section class="wrap section" id="faq">
+  <div class="faq">
+    <div class="faq-l"><span class="pill" style="justify-self:start">Questions</span><h2 data-lines>What people ask before they sign up.</h2><p class="muted">Something else on your mind? Write to AlphacodeAI from the contact page at <a href="https://alphacodeai.com">alphacodeai.com</a>.</p></div>
+    <div class="faq-r"><details class="qa" name="faq"><summary><span>How long is the free trial?</span><i aria-hidden="true"></i></summary><p data-blur>Every new workspace starts with a free trial of up to 7 days with every feature switched on. Sign-up needs your name, work email and a username, and no card.</p></details><details class="qa" name="faq"><summary><span>What happens when the trial ends?</span><i aria-hidden="true"></i></summary><p data-blur>You move to one monthly plan per workspace. The invoice arrives by email with the tax shown, and your jobs and candidates stay exactly where they are.</p></details><details class="qa" name="faq"><summary><span>Can other recruiters see my candidates?</span><i aria-hidden="true"></i></summary><p data-blur>No. Every account gets its own private workspace, and the database keeps one account's jobs and candidates invisible to every other account. You can export everything as a backup any time.</p></details><details class="qa" name="faq"><summary><span>Which resume files can I upload?</span><i aria-hidden="true"></i></summary><p data-blur>PDF, Word (DOCX and DOC), plain text, RTF and Markdown, plus photos or scans in PNG, JPG and WEBP. Drop up to sixty at once on a job.</p></details><details class="qa" name="faq"><summary><span>Does it send interview emails for me?</span><i aria-hidden="true"></i></summary><p data-blur>Yes. When you schedule an interview, the invite goes out with a calendar file and the panel copied in, and a reminder goes out on the morning of the interview. Any message can also open as a WhatsApp chat or a Gmail draft.</p></details><details class="qa" name="faq"><summary><span>Do I need to install anything?</span><i aria-hidden="true"></i></summary><p data-blur>No. HireLens runs in the browser on a laptop or a phone. Open the demo to look around with sample data first.</p></details></div>
+  </div>
+</section>
+
 <section class="wrap section">
   <article class="card demo" data-reveal>
     <div class="l">
@@ -459,8 +508,8 @@ html[data-preloader] .pre{display:grid}
     <div class="f-top">
       <p class="tag">Every resume scored before you call.</p>
       <div><h4>Product</h4><ul><li><a href="#product">What you get</a></li><li><a href="#how">How it works</a></li><li><a href="/signup">Start free trial</a></li><li><a href="/login">Log in</a></li><li><a href="/demo">Demo</a></li></ul></div>
-      <div><h4>Company</h4><ul><li><a href="https://alphacodeai.com">AlphacodeAI</a></li><li><a href="#talk">Pricing</a></li></ul></div>
-      <div><h4>Built with</h4><ul><li>WhatsApp Cloud API</li><li>Google Calendar and Meet</li><li>Your choice of AI model</li></ul></div>
+      <div><h4>Company</h4><ul><li><a href="https://alphacodeai.com">AlphacodeAI</a></li><li><a href="#talk">Pricing</a></li><li><a href="#faq">Questions</a></li></ul></div>
+      <div><h4>Built with</h4><ul><li>WhatsApp click-to-chat</li><li>Resend email</li><li>Google Calendar and Meet</li><li>Your choice of AI model</li></ul></div>
     </div>
     <div class="f-legal"><span>© 2026 AlphacodeAI Private Limited, Mumbai</span><a href="#top" style="text-decoration:none">Back to top <span aria-hidden="true">↑</span></a></div>
   </div>
@@ -674,12 +723,55 @@ $$('[data-bars]').forEach((box) => {
   const bars = $$('i', box), horiz = box.classList.contains('wbars')
   const end = bars.map((el) => horiz ? +getComputedStyle(el).getPropertyValue('--v') || 1 : 1)
   gsap.set(bars, horiz ? { scaleX: 0, transformOrigin: '0 50%' } : { scaleY: 0, transformOrigin: '50% 100%' })
-  ScrollTrigger.create({ trigger: box, start: 'top 85%', once: true, onEnter: () => gsap.to(bars, horiz ? { scaleX: (i) => end[i], duration: .9, ease: 'power3.out', stagger: .08 } : { scaleY: 1, duration: .9, ease: 'power3.out', stagger: .08 }) })
+  const play = () => gsap.to(bars, horiz ? { scaleX: (i) => end[i], duration: .9, ease: 'power3.out', stagger: .08 } : { scaleY: 1, duration: .9, ease: 'power3.out', stagger: .08 })
+  const card = box.closest('.dcard')
+  if (card) (card._plays ||= []).push(play)
+  else ScrollTrigger.create({ trigger: box, start: 'top 85%', once: true, onEnter: play })
 })
 gsap.set('[data-tiles] .tile', { y: 12, opacity: 0 })
 ScrollTrigger.create({ trigger: '[data-tiles]', start: 'top 85%', once: true, onEnter: () => gsap.to('[data-tiles] .tile', { y: 0, opacity: 1, duration: .6, ease: 'power3.out', stagger: .07, delay: .1 }) })
 gsap.set('[data-run]', { scaleX: 0 })
-ScrollTrigger.create({ trigger: '[data-run]', start: 'top 85%', once: true, onEnter: () => gsap.to('[data-run]', { scaleX: 1, duration: 1.2, ease: 'power3.inOut' }) })
+;($('[data-run]').closest('.dcard')._plays ||= []).push(() => gsap.to('[data-run]', { scaleX: 1, duration: 1.2, ease: 'power3.inOut' }))
+
+// deck: the three weeks are dealt onto a pinned stage as you scroll. Each card rises tilted and
+// soft, flattens and sharpens as it lands; the ones beneath lean back, sink and dim.
+// (After "Scroll Stacking Cards" by Aakash Mehra on 21st.dev.)
+const deck = $('#deck')
+if (deck) {
+  const cards = $$('.dcard', deck), n = cards.length, span = Math.max(1, n - 1), ENTER = .72
+  deck.style.setProperty('--n', n)
+  html.classList.add('deck-live')
+  const c01 = (v) => Math.min(1, Math.max(0, v)), out3 = (t) => 1 - (1 - t) ** 3
+  const arrived = (j, v) => j <= 0 ? 1 : out3(c01((v * span - (j - 1)) / ENTER))
+  const dims = cards.map((c) => $('.dim', c))
+  const playCard = (c) => { if (c._played) return; c._played = true; (c._plays || []).forEach((f) => f()) }
+  const render = (v) => {
+    const vh = innerHeight / 100
+    cards.forEach((card, i) => {
+      const a = arrived(i, v)
+      let above = 0
+      for (let j = i + 1; j < n; j++) above += arrived(j, v)
+      above = Math.min(3, above)
+      gsap.set(card, { y: ((1 - a) * 108 - above * 5) * vh, rotationX: -(1 - a) * 30 + above * 5, scale: .9 + .1 * a - above * .05, filter: `blur(${((1 - a) ** 2 * 12 + above * 1.1).toFixed(2)}px)` })
+      dims[i].style.opacity = (above * .12).toFixed(3)
+      if (i > 0 && a > .6) playCard(card)
+    })
+  }
+  render(0)
+  const prog = { v: 0 }
+  gsap.to(prog, { v: 1, ease: 'none', onUpdate: () => render(prog.v), scrollTrigger: { trigger: deck, start: 'top top', end: 'bottom bottom', scrub: .5, invalidateOnRefresh: true } })
+  ScrollTrigger.create({ trigger: deck, start: 'top 70%', once: true, onEnter: () => playCard(cards[0]) })
+  addEventListener('resize', () => render(prog.v))
+}
+
+// faq: an opened answer comes into focus word by word
+// (After "Text Reveal FAQs" by ruixen.ui on 21st.dev.)
+$$('.qa').forEach((d) => {
+  const p = $('[data-blur]', d)
+  p.innerHTML = p.textContent.trim().split(/(\s+)/).map((t) => /^\s+$/.test(t) ? t : `<span class="bw">${t}</span>`).join('')
+  const words = $$('.bw', p)
+  d.addEventListener('toggle', () => { if (d.open) gsap.fromTo(words, { opacity: 0, filter: 'blur(10px)', y: 4 }, { opacity: 1, filter: 'blur(0px)', y: 0, duration: .45, ease: 'power2.out', stagger: .018, overwrite: true }) })
+})
 
 // the meet card: a lime pulse runs down the dashed line
 const pulse = () => gsap.fromTo('.tl .pulse', { y: 0, opacity: 1 }, { y: () => $('.tl').offsetHeight - 16, duration: 1.1, ease: 'power2.inOut', onComplete: () => gsap.to('.tl .pulse', { opacity: 0, duration: .3 }) })
