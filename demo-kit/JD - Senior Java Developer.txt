@@ -1,0 +1,28 @@
+Senior Java Developer
+Client: Example Fintech (payments)
+Location: Malad West, Mumbai (hybrid, 3 days in office)
+Experience: 5 to 8 years
+Budget: up to 24 LPA
+Notice period: 30 days or less
+Openings: 2
+
+About the role
+You will build and own payment microservices used by partner banks and merchants.
+
+What you will do
+- Design and build microservices in Java and Spring Boot
+- Write REST APIs consumed by partner banks
+- Work with SQL databases at high volume and tune slow queries
+- Publish and consume events on Kafka
+- Mentor two junior developers
+
+Must have
+- Java 11 or later
+- Spring Boot
+- Microservices
+- SQL
+
+Nice to have
+- Kafka
+- AWS
+- Docker

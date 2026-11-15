@@ -1,0 +1,19 @@
+Sneha Iyer
+Software Engineer
+Email: sneha.iyer.demo@example.com  |  Phone: +91 98201 11004
+Location: Thane West
+
+SUMMARY
+3 years of Java and Spring Boot. Keen to move into microservices.
+Current CTC: 9 LPA | Expected CTC: 13 LPA | Notice period: 30 days
+
+SKILLS
+Java, Spring Boot, SQL, Hibernate, Git
+
+EXPERIENCE
+Software Engineer, Example IT Solutions  (2022 - Present)
+- REST APIs in Spring Boot for an HR product
+- Unit tests with JUnit and Mockito
+
+EDUCATION
+B.E. Electronics, Mumbai University, 2022

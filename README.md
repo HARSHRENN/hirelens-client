@@ -20,18 +20,21 @@ Recruitment workspace built by AlphacodeAI: job descriptions, AI resume matching
 ```
 src/            React app (Vite + TypeScript)
   lib/          store (artifact db or localStorage), ai, parse, match, geo, integrations
-  views/        Dashboard, Jobs, JobDetail (+ Share, Calibration, IdealProfile), Tracker, Pipeline, Outreach, Admin
+  views/        Dashboard, Jobs, JobDetail (+ Share, Calibration, IdealProfile), Tracker, Pipeline, Outreach,
+                Panelists, Admin (+ AdminTeam analytics), Billing
 api/            Vercel functions: ai, whatsapp, email, geocode, webhook (keys from Admin header or env)
 site/           Landing page (GetLayers "Kelder" prompt, adapted; GSAP + ScrollTrigger)
-deploy/         Ready-to-upload Vercel bundle: / (site), /app (app), /api (functions)
+scripts/        assemble.mjs builds out/: / (site), /app (app), /admin (app)
 ```
+
+See `HANDOVER.md` for the full handover brief: deployment, architecture, features, limits and next steps.
 
 ## Run and build
 
 ```
 npm install
 npm run dev                # app at http://localhost:5173/app/
-npm run build              # dist/ for the web (base /app/)
+npm run build              # out/ for Vercel: site at /, app at /app (needs `npx vercel dev` to run /api locally)
 npm run build:artifact     # one self-contained HTML for a claude.ai artifact
 ```
 

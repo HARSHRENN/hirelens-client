@@ -1,0 +1,9 @@
+Call with hiring manager, Example Fintech, Senior Java Developer
+
+- Unhone bola Kafka ab must-have hai, nice-to-have nahi. Settlement pura Kafka pe shift ho raha hai.
+- Budget thoda badha sakte hain, max 26 LPA tak, agar candidate strong hai.
+- Notice 30 days hi chahiye, 60 days wale nahi chalenge. Buyout possible nahi hai.
+- Team lead ka experience zaroori nahi, but mentoring kiya ho to plus.
+- Interview process: L1 technical 45 min (Java + Spring Boot + SQL), L2 system design with CTO, then HR.
+- Pune se relocate karne wale theek hain, but joining 30 din mein honi chahiye.
+- First two offers this month, ideally by 30 November.
