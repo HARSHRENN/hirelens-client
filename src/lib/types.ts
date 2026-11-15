@@ -48,7 +48,6 @@ export interface Job {
   status: 'open' | 'paused' | 'closed'
   ideal?: IdealProfile
   calibration?: Calibration
-  ownerId?: string
   createdAt: number
   updatedAt: number
 }
@@ -118,7 +117,6 @@ export interface Candidate {
   remarks: Remark[]
   interviewAt?: number
   meetLink?: string
-  ownerId?: string // recruiter who added the profile
   employment?: Employment[]
   selfRatings?: Record<string, number> // JD skill -> 1..5, as the candidate rates themselves
   interviews?: Interview[]
@@ -140,6 +138,8 @@ export interface Interview {
   feedback?: string
   feedbackBy?: string
   createdAt: number
+  inviteSentAt?: number // the invite email went out
+  reminderSentAt?: number // the morning reminder went out (set by the server)
 }
 
 export interface Panelist {
@@ -152,32 +152,6 @@ export interface Panelist {
   active: boolean
   createdAt: number
   updatedAt: number
-}
-
-export interface Recruiter { id: string; name: string; email: string }
-
-export interface Invoice {
-  id: string
-  number: string
-  date: number
-  periodFrom: number
-  periodTo: number
-  description: string
-  amount: number
-  taxPct: number
-  status: 'due' | 'paid'
-}
-
-export interface Billing {
-  planName: string
-  price: number // per month, INR, before tax
-  taxPct: number
-  trialDays: number // 3..7
-  trialStart: number
-  seller: { name: string; address: string; gstin: string }
-  buyer: { name: string; address: string; gstin: string; email: string }
-  invoices: Invoice[]
-  saved?: boolean // set once the trial start has been written, so a reload never restarts the trial
 }
 
 export interface Template {
@@ -197,21 +171,9 @@ export interface AppConfig {
   shortlistAt: number // score threshold
   bands: { potential: number; near: number } // >= potential green, >= near orange, below red
   levels: Level[]
-  recruiters: Recruiter[]
-  billing: Billing
+  webhookUrl: string // Zapier / Make / n8n hook for auto-posting jobs
+  timezone: string // IANA zone used for reminders, e.g. Asia/Kolkata
+  autoInvites: boolean // email the candidate (and CC the panel) when a round is scheduled
+  autoReminders: boolean // email the candidate on the morning of the interview
 }
 
-export interface Secrets {
-  aiProvider: 'builtin' | 'anthropic' | 'openai' | 'gemini'
-  anthropicKey: string
-  openaiKey: string
-  geminiKey: string
-  aiModel: string
-  googleMapsKey: string
-  waPhoneNumberId: string
-  waToken: string
-  resendKey: string
-  emailFrom: string
-  webhookUrl: string
-  apiBase: string // where /api lives on the deployed build
-}

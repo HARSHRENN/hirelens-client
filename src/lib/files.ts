@@ -1,5 +1,9 @@
-/* Original resume files, kept in this browser's IndexedDB (too big for the
- * shared store). The tracker attaches them when sharing with a client. */
+import { api, supaSync } from './cloud'
+import { MODE } from './runtime'
+
+/* Original resume files. A signed-in workspace keeps them in private server storage
+ * (one folder per account); the demo and the Claude preview keep them in this browser's
+ * IndexedDB. The tracker attaches them when sharing with a client. */
 
 const DB = 'hirelens-files', STORE = 'resumes'
 
@@ -15,6 +19,13 @@ function open(): Promise<IDBDatabase> {
 export interface StoredFile { name: string; type: string; blob: Blob; savedAt: number }
 
 export async function saveOriginal(candidateId: string, file: File): Promise<boolean> {
+  if (MODE() === 'cloud') {
+    try {
+      const { path, token } = await api<{ path: string; token: string }>('app', 'upload-url', { candidateId })
+      const { error } = await supaSync()!.storage.from('resumes').uploadToSignedUrl(path, token, file, { contentType: file.type || 'application/octet-stream', upsert: true })
+      return !error
+    } catch { return false }
+  }
   try {
     const db = await open()
     await new Promise<void>((res, rej) => {
@@ -26,7 +37,16 @@ export async function saveOriginal(candidateId: string, file: File): Promise<boo
   } catch { return false }
 }
 
-export async function getOriginal(candidateId: string): Promise<StoredFile | null> {
+export async function getOriginal(candidateId: string, name = 'resume'): Promise<StoredFile | null> {
+  if (MODE() === 'cloud') {
+    try {
+      const { url } = await api<{ url: string }>('app', 'file-url', { candidateId })
+      const r = await fetch(url)
+      if (!r.ok) return null
+      const blob = await r.blob()
+      return { name, type: blob.type, blob, savedAt: Date.now() }
+    } catch { return null }
+  }
   try {
     const db = await open()
     return await new Promise((res) => {

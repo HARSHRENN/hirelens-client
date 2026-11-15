@@ -124,7 +124,7 @@ function Profiles({ job }: { job: Job }) {
         totalExp: ex.totalExp, relevantExp: ex.relevantExp ?? ex.totalExp, currentCtcLpa: dupe?.currentCtcLpa ?? ex.currentCtcLpa, expectedCtcLpa: dupe?.expectedCtcLpa ?? ex.expectedCtcLpa,
         noticeDays: dupe?.noticeDays ?? ex.noticeDays, currentLocation: place.label ? place : (dupe?.currentLocation || { label: '' }), distanceKm,
         skills: ex.skills || [], education: ex.education || '', summary: ex.summary || '', match,
-        employment: ex.employment?.length ? ex.employment : base.employment || [], ownerId: base.ownerId || st.me, hasOriginal: file ? true : base.hasOriginal,
+        employment: ex.employment?.length ? ex.employment : base.employment || [], hasOriginal: file ? true : base.hasOriginal,
         shortlisted: dupe?.shortlisted || match.score >= st.config.shortlistAt,
         remarks: [...(base.remarks || []), { id: uid('r'), at: now, kind: 'note', text: dupe ? `Resume updated (${name}), now ${match.score}% match` : `Resume added (${name}), ${match.score}% match` }],
       }

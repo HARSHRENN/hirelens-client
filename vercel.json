@@ -3,10 +3,64 @@
   "installCommand": "npm install",
   "buildCommand": "npm run build",
   "outputDirectory": "out",
-  "functions": { "api/*.js": { "maxDuration": 60 } },
+  "functions": {
+    "api/*.js": {
+      "maxDuration": 60
+    }
+  },
   "rewrites": [
-    { "source": "/admin", "destination": "/app/index.html" },
-    { "source": "/app/:path((?!assets/).*)", "destination": "/app/index.html" }
+    {
+      "source": "/admin",
+      "destination": "/app/index.html"
+    },
+    {
+      "source": "/login",
+      "destination": "/app/index.html"
+    },
+    {
+      "source": "/signup",
+      "destination": "/app/index.html"
+    },
+    {
+      "source": "/verify",
+      "destination": "/app/index.html"
+    },
+    {
+      "source": "/forgot",
+      "destination": "/app/index.html"
+    },
+    {
+      "source": "/reset",
+      "destination": "/app/index.html"
+    },
+    {
+      "source": "/demo",
+      "destination": "/app/index.html"
+    },
+    {
+      "source": "/u/:path*",
+      "destination": "/app/index.html"
+    },
+    {
+      "source": "/app/:path((?!assets/).*)",
+      "destination": "/app/index.html"
+    }
   ],
-  "headers": [{ "source": "/api/(.*)", "headers": [{ "key": "Cache-Control", "value": "no-store" }] }]
+  "headers": [
+    {
+      "source": "/api/(.*)",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "no-store"
+        }
+      ]
+    }
+  ],
+  "crons": [
+    {
+      "path": "/api/cron",
+      "schedule": "30 2 * * *"
+    }
+  ]
 }

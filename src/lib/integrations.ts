@@ -1,13 +1,15 @@
-import { cap, TARGET } from './runtime'
+import { api } from './cloud'
+import { cap, MODE, TARGET } from './runtime'
 import { getState } from './store'
 import type { Candidate, Job } from './types'
 
-/* Everything that leaves the app. Two tiers per channel:
- *  1. hand-off links that need no keys (wa.me, Gmail compose, Calendar, share intents)
- *  2. direct API sends through the deployed /api routes, using keys from Admin */
+/* Everything that leaves the app.
+ *  - WhatsApp: wa.me links only (the recruiter presses send); there is no WhatsApp API.
+ *  - Email: Gmail compose links everywhere, plus server sends through the platform's
+ *    Resend account for a signed-in workspace (manual sends, invites, reminders, invoices).
+ *  - Calendar and social: template and share-intent links. */
 
-const api = () => getState().secrets.apiBase || ''
-export const canServerSend = () => TARGET === 'web'
+export const canServerSend = () => MODE() === 'cloud'
 
 export function phoneE164(p: string) {
   const d = (p || '').replace(/\D/g, '')
@@ -30,47 +32,23 @@ export function calendarLink(o: { title: string; start: Date; minutes: number; d
   return `https://calendar.google.com/calendar/render?${q}`
 }
 
-export async function sendWhatsApp(to: string, text: string) {
-  const s = getState().secrets
-  const r = await fetch(`${api()}/api/whatsapp`, {
-    method: 'POST', headers: { 'content-type': 'application/json', ...(s.waToken ? { 'x-wa-token': s.waToken } : {}) },
-    body: JSON.stringify({ to: phoneE164(to), text, phoneNumberId: s.waPhoneNumberId || undefined }),
-  })
-  const j = await r.json().catch(() => ({}))
-  if (!r.ok) throw new Error(j.error || `WhatsApp send failed (${r.status})`)
-  return j
-}
-
-export async function sendEmail(to: string, subject: string, body: string) {
-  const s = getState().secrets
-  const r = await fetch(`${api()}/api/email`, {
-    method: 'POST', headers: { 'content-type': 'application/json', ...(s.resendKey ? { 'x-resend-key': s.resendKey } : {}) },
-    body: JSON.stringify({ to, subject, text: body, from: s.emailFrom || undefined }),
-  })
-  const j = await r.json().catch(() => ({}))
-  if (!r.ok) throw new Error(j.error || `Email send failed (${r.status})`)
-  return j
+export async function sendEmail(to: string, subject: string, body: string, cc: string[] = []) {
+  return api('app', 'send-email', { to, cc, subject, text: body })
 }
 
 export async function sendEmailWithFiles(to: string, subject: string, body: string, attachments: { filename: string; content: string }[]) {
-  const s = getState().secrets
-  const r = await fetch(`${api()}/api/email`, {
-    method: 'POST', headers: { 'content-type': 'application/json', ...(s.resendKey ? { 'x-resend-key': s.resendKey } : {}) },
-    body: JSON.stringify({ to, subject, text: body, from: s.emailFrom || undefined, attachments }),
-  })
-  const j = await r.json().catch(() => ({}))
-  if (!r.ok) throw new Error(j.error || (r.status === 413 ? 'The attachments are too large to send. Download the pack and attach it yourself.' : `Email send failed (${r.status})`))
-  return j
+  return api('app', 'send-email', { to, subject, text: body, attachments })
+}
+
+/** The automatic invite when a round is scheduled: the email plus a calendar file. */
+export async function sendInterviewInvite(o: { to: string; cc: string[]; subject: string; text: string; start: number; minutes: number; title: string; location?: string; interviewId: string }) {
+  return api('app', 'interview-invite', o)
 }
 
 export async function fireWebhook(event: string, payload: unknown) {
-  const s = getState().secrets
-  if (!s.webhookUrl || TARGET !== 'web') return false
-  const r = await fetch(`${api()}/api/webhook`, {
-    method: 'POST', headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ url: s.webhookUrl, event, payload }),
-  })
-  if (!r.ok) throw new Error('Automation webhook failed')
+  const url = getState().config.webhookUrl
+  if (!url || MODE() !== 'cloud') return false
+  await api('app', 'webhook', { url, event, payload })
   return true
 }
 

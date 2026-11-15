@@ -1,4 +1,4 @@
-import { getStages, type Candidate, type Interview, type Panelist, type Recruiter } from './types'
+import type { Candidate, Interview, Panelist } from './types'
 
 export interface PanelStat {
   total: number; done: number; upcoming: number; select: number; reject: number; hold: number; pending: number
@@ -30,32 +30,6 @@ export function panelStats(cands: Candidate[], from = 0, to = Infinity): Record<
   for (const [id, r] of Object.entries(ratings)) out[id]!.avgRating = r.reduce((a, b) => a + b, 0) / r.length
   for (const s of Object.values(out)) s.feedback.sort((a, b) => b.at - a.at)
   return out
-}
-
-export interface RecStat { id: string; name: string; screened: number; shortlisted: number; interviewing: number; selected: number; rejected: number; hold: number; offered: number; joined: number; declined: number; avgMatch: number | null }
-
-export function recruiterStats(cands: Candidate[], recruiters: Recruiter[], from = 0, to = Infinity): RecStat[] {
-  const rows: RecStat[] = [{ id: 'admin', name: 'Super admin' }, ...recruiters].map((r) => ({ id: r.id, name: r.name, screened: 0, shortlisted: 0, interviewing: 0, selected: 0, rejected: 0, hold: 0, offered: 0, joined: 0, declined: 0, avgMatch: null }))
-  const by = Object.fromEntries(rows.map((r) => [r.id, r]))
-  const sums: Record<string, number[]> = {}
-  const levelIds = new Set(getStages().filter((s) => s.kind === 'level').map((s) => s.id))
-  for (const c of cands) {
-    if (c.createdAt < from || c.createdAt > to) continue
-    const r = by[c.ownerId || 'admin'] || by.admin!
-    r.screened++
-    if (c.shortlisted) r.shortlisted++
-    if (levelIds.has(c.stage)) r.interviewing++
-    // later outcomes imply the earlier ones: an offered or joined candidate was selected first
-    if (['selected', 'offered', 'joined', 'declined'].includes(c.stage)) r.selected++
-    if (['offered', 'joined', 'declined'].includes(c.stage)) r.offered++
-    if (c.stage === 'joined') r.joined++
-    if (c.stage === 'declined') r.declined++
-    if (c.stage === 'rejected') r.rejected++
-    if (c.stage === 'hold') r.hold++
-    if (c.match) (sums[r.id] ||= []).push(c.match.score)
-  }
-  for (const r of rows) { const s = sums[r.id]; r.avgMatch = s?.length ? Math.round(s.reduce((a, b) => a + b, 0) / s.length) : null }
-  return rows.filter((r) => r.id !== 'admin' || r.screened > 0)
 }
 
 export const panelistName = (p: Record<string, Panelist>, id: string) => p[id]?.name || 'Removed panelist'

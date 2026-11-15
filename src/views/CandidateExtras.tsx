@@ -3,12 +3,15 @@ import { useEffect, useState } from 'react'
 import { BandChip, Button, Field, Input, LinkButton, Select, Textarea, useToast } from '../components/ui'
 import { clientResumePdf } from '../lib/clientResume'
 import { getOriginal } from '../lib/files'
-import { calendarLink, saveFile } from '../lib/integrations'
+import { MODE } from '../lib/runtime'
+import { calendarLink, canServerSend, candidateVars, saveFile, sendInterviewInvite } from '../lib/integrations'
 import { companiesCount, selfMatch, yearsAt } from '../lib/match'
-import { put, useStages, useStore } from '../lib/store'
+import { getState, put, useStages, useStore } from '../lib/store'
 import type { Candidate, Employment, Interview } from '../lib/types'
 import { stageLabel } from '../lib/types'
 import { fmtDate, uid } from '../lib/util'
+
+const fill = (t: string, v: Record<string, string>) => t.replace(/\{\{\s*(\w+)\s*\}\}/g, (m, k) => (v[k] ? v[k] : m))
 
 /* ---------------- employment stint: one bar per job across the years ---------------- */
 export function EmploymentTimeline({ c }: { c: Candidate }) {
@@ -93,6 +96,10 @@ export function PanelInterviews({ c }: { c: Candidate }) {
   const [round, setRound] = useState(levels.find((l) => !(c.interviews || []).some((i) => i.round === l.id))?.id || levels[0]?.id || 'l1')
   const [who, setWho] = useState<string[]>([])
   const [link, setLink] = useState('')
+  const autoInvites = useStore((s) => s.config.autoInvites)
+  const [mail, setMail] = useState(true)
+  const [busy, setBusy] = useState(false)
+  const canMail = canServerSend() && autoInvites && !!c.email
   const active = Object.values(panelists).filter((p) => p.active)
   const list = [...(c.interviews || [])].sort((a, b) => b.at - a.at)
   const start = new Date(when)
@@ -101,10 +108,29 @@ export function PanelInterviews({ c }: { c: Candidate }) {
 
   async function schedule() {
     if (isNaN(start.getTime())) return
+    if (start.getTime() < Date.now() - 6e4) return toast('Pick a time in the future.', { kind: 'error' })
+    setBusy(true)
     const iv: Interview = { id: uid('iv'), round, at: start.getTime(), panelistIds: who, meetLink: link.trim() || undefined, result: 'pending', createdAt: Date.now() }
-    await put('candidates', { ...c, stage: round, interviewAt: iv.at, meetLink: iv.meetLink || c.meetLink, interviews: [...(c.interviews || []), iv],
-      remarks: [...c.remarks, { id: uid('r'), at: Date.now(), kind: 'meet', text: `${stageLabel(round)} set for ${start.toLocaleString('en-IN', { day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' })}${who.length ? ' with ' + who.map((id) => panelists[id]?.name).join(', ') : ''}` }] })
-    toast('Interview scheduled. Send the invite from Message.'); setLink('')
+    const when = start.toLocaleString('en-IN', { day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' })
+    let next: Candidate = { ...c, stage: round, interviewAt: iv.at, meetLink: iv.meetLink || c.meetLink, interviews: [...(c.interviews || []), iv],
+      remarks: [...c.remarks, { id: uid('r'), at: Date.now(), kind: 'meet', text: `${stageLabel(round)} set for ${when}${who.length ? ' with ' + who.map((id) => panelists[id]?.name).join(', ') : ''}` }] }
+    await put('candidates', next)
+    if (canMail && mail) {
+      // the automatic invite: the candidate's "Interview invite" email template, a calendar file, the panel in CC
+      const st = getState()
+      const tpl = Object.values(st.templates).find((t) => t.channel === 'email' && /invite/i.test(t.name))
+      const vars = { ...candidateVars(next, job, st.config), round: stageLabel(round) }
+      const subject = fill(tpl?.subject || 'Interview scheduled: {{role}}', vars)
+      const text = fill(tpl?.body || 'Hi {{name}},\n\nYour {{round}} interview for {{role}} is on {{interviewTime}}.\n\nGoogle Meet: {{meetLink}}\n\nRegards,\n{{recruiter}}\n{{company}}', vars).replace(/\n?.*\{\{meetLink\}\}.*\n?/g, '\n')
+      try {
+        await sendInterviewInvite({ to: c.email, cc: who.map((id) => panelists[id]?.email || '').filter(Boolean), subject, text, start: iv.at, minutes: 45, title: `${stageLabel(round)}: ${c.name} for ${job?.title || 'the role'}`, location: iv.meetLink, interviewId: iv.id })
+        next = getState().candidates[c.id] || next
+        await put('candidates', { ...next, interviews: (next.interviews || []).map((x) => (x.id === iv.id ? { ...x, inviteSentAt: Date.now() } : x)),
+          remarks: [...next.remarks, { id: uid('r'), at: Date.now(), kind: 'email', text: `Interview invite emailed to ${c.email}${who.length ? ` (panel in CC)` : ''} with a calendar file` }] })
+        toast(`Interview scheduled and invite emailed to ${c.email}`)
+      } catch (e: any) { toast(`Interview saved, but the invite email failed: ${e.message}`, { kind: 'error' }) }
+    } else toast(c.email || !canServerSend() ? 'Interview scheduled. Send the invite from Message.' : 'Interview scheduled. This profile has no email, so send the invite on WhatsApp from Message.')
+    setLink(''); setBusy(false)
   }
 
   return <section className="stack" style={{ gap: 'var(--space-xl)' }}>
@@ -125,8 +151,10 @@ export function PanelInterviews({ c }: { c: Candidate }) {
       <div className="row">
         <LinkButton href={cal}><CalendarPlus size={14} />Open in Google Calendar</LinkButton>
         <LinkButton variant="ghost" href="https://meet.new"><Video size={14} />meet.new</LinkButton>
-        <Button variant="ink" onClick={schedule}>Save interview</Button>
+        <Button variant="ink" busy={busy} onClick={schedule}>{canMail && mail ? 'Save and email invite' : 'Save interview'}</Button>
       </div>
+      {canMail && <label className="row small"><input type="checkbox" checked={mail} onChange={(e) => setMail(e.target.checked)} /> Email the invite to {c.email} with a calendar file{who.length ? ', panel in CC' : ''}. A reminder follows on the morning of the interview.</label>}
+      {canServerSend() && !autoInvites && <p className="xs muted">Automatic invites are off in Settings.</p>}
     </div>
     <div className="stack">
       <h3>Rounds and panel feedback</h3>
@@ -168,10 +196,10 @@ export function ResumeFiles({ c }: { c: Candidate }) {
   const agency = useStore((s) => s.config.companyName)
   const toast = useToast()
   const [orig, setOrig] = useState<{ name: string } | null>(null)
-  useEffect(() => { getOriginal(c.id).then((f) => setOrig(f ? { name: f.name } : null)) }, [c.id])
+  useEffect(() => { if (MODE() === 'cloud') setOrig(c.hasOriginal ? { name: c.fileName } : null); else getOriginal(c.id).then((f) => setOrig(f ? { name: f.name } : null)) }, [c.id, c.hasOriginal, c.fileName])
   return <div className="row">
     <Button size="sm" disabled={!orig} title={orig ? orig.name : 'The original file is kept only in the browser that uploaded it'} onClick={async () => {
-      const f = await getOriginal(c.id); if (!f) return
+      const f = await getOriginal(c.id, c.fileName); if (!f) return
       const r = await saveFile(f.name, f.blob, f.type); toast(r === 'saved' ? 'Original resume saved' : 'Download blocked here')
     }}><Download size={14} />Original{orig ? '' : ' (not in this browser)'}</Button>
     <Button size="sm" onClick={async () => {

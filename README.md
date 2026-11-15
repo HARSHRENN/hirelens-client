@@ -1,54 +1,49 @@
 # HireLens
 
-Recruitment workspace built by AlphacodeAI: job descriptions, AI resume matching, candidate tracker, WhatsApp and email outreach, Google Meet scheduling, social job posts, calibration-call notes and a hiring dashboard.
+AI recruitment SaaS by AlphacodeAI. Recruiters sign up for their own workspace: job descriptions, AI resume matching, a candidate tracker, panel interviews, WhatsApp and email outreach, automatic interview invites and reminders, a hiring dashboard, and billing with a free trial. One platform admin sets the keys, the plan and the trial for everyone.
 
-## What maps to the brief
+See `HANDOVER.md` for the full brief.
 
-| # | Requirement | Where |
-|---|---|---|
-| 1 | JD creation + drop box for resumes in any format | Jobs → New job (AI writes or reads the JD) · Job → Profiles drop zone (PDF, DOCX, DOC, TXT, images, scanned PDFs via AI) |
-| 2 | Match summary (100%, 70%, 50%…) | Score per profile from five weighted parts (skills, experience, CTC, location, notice); weights in Admin |
-| 3 | WhatsApp, email templates, quick Google Meet | Candidate → Message (templates, wa.me / Gmail, or API send) · Candidate → Interview (Calendar + Meet) · Outreach page |
-| 4 | Tracker: name, total/relevant exp, current/expected CTC, notice, location + distance, remarks | Tracker page (sortable, filterable, CSV export) · Candidate → Remarks |
-| 5 | Totals, technology bifurcation, L1/L2/select/reject/hold, dashboard | Dashboard |
-| 6 | Share JD on LinkedIn, Instagram, X, Facebook | Job → Share job (prefilled posts, 1080² creative, automation webhook for auto-posting) |
-| 7 | Calibration call, recording, note taker, translation (good to have) | Job → Calibration call (notes/transcript, live captions + recording on the deployed app, AI summary → requirement, translation into 10 Indian languages) |
-| 8 | Shortlist highlighted + ideal candidate profile | Lime marker on shortlisted rows · Job → Ideal candidate (built from the shortlist, surfaces the next-closest profiles) |
+## Pages
+
+| Path | Who | What |
+| --- | --- | --- |
+| `/` | Everyone | Landing site |
+| `/signup`, `/login`, `/forgot`, `/reset`, `/verify` | Everyone | Accounts |
+| `/u/<username>` | A signed-in recruiter | Their own workspace (jobs, tracker, pipeline, outreach, panelists, billing, settings) |
+| `/admin` | The platform admin | Keys, plan and trial, every recruiter's numbers, invoices, email usage |
+| `/demo` | Everyone | Sample workspace in the browser, no account, AI off |
 
 ## Layout
 
 ```
 src/            React app (Vite + TypeScript)
-  lib/          store (artifact db or localStorage), ai, parse, match, geo, integrations
-  views/        Dashboard, Jobs, JobDetail (+ Share, Calibration, IdealProfile), Tracker, Pipeline, Outreach,
-                Panelists, Admin (+ AdminTeam analytics), Billing
-api/            Vercel functions: ai, whatsapp, email, geocode, webhook (keys from Admin header or env)
-site/           Landing page (GetLayers "Kelder" prompt, adapted; GSAP + ScrollTrigger)
-scripts/        assemble.mjs builds out/: / (site), /app (app), /admin (app)
+  App.tsx       routing: account pages, signed-in gate, workspace shell
+  auth/         sign-up, login, verify, forgot, reset
+  admin/        platform admin panel
+  views/        workspace pages
+  lib/          store (Supabase / demo / artifact), cloud (API client), ai, parse, match, geo, integrations
+api/            Vercel functions: auth, app, admin, ai, cron (+ _lib helpers, schema)
+shared/         invoice maths and PDF, used by browser and server
+site/           landing page
+scripts/        migrate.mjs (database schema on every build), assemble.mjs
 ```
 
-See `HANDOVER.md` for the full handover brief: deployment, architecture, features, limits and next steps.
+## Stack and costs (all free tiers)
+
+- **Hosting:** Vercel (5 functions; daily cron at 08:00 IST).
+- **Database, login, resume files:** Supabase (Postgres with row-level security, Auth, Storage).
+- **Email:** Resend (100 a day, 3,000 a month on the free plan; the app stays under both).
+- **Maps:** OpenStreetMap Nominatim and Photon, no key, cached in the database.
+- **WhatsApp:** wa.me links only; no WhatsApp API.
+- **AI:** OpenAI by default (or Anthropic or Gemini). The admin's key, held on the server.
 
 ## Run and build
 
 ```
 npm install
-npm run dev                # app at http://localhost:5173/app/
-npm run build              # out/ for Vercel: site at /, app at /app (needs `npx vercel dev` to run /api locally)
-npm run build:artifact     # one self-contained HTML for a claude.ai artifact
+npm run dev              # UI at http://localhost:5173/app/ (the /api functions need `npx vercel dev`)
+npm run typecheck
+npm run build            # migrates the database if connected, then builds out/
+npm run build:artifact   # single-file claude.ai preview
 ```
-
-## Keys
-
-Typed in **Admin** (stored only in that browser, sent as headers to `/api/*`), or set as Vercel env vars (see `.env.example`):
-
-- AI (default OpenAI, gpt-5.6-terra): `OPENAI_API_KEY`, or `ANTHROPIC_API_KEY` / `GEMINI_API_KEY` with `AI_PROVIDER`; `AI_MODEL` to override
-- WhatsApp Cloud API: `WHATSAPP_PHONE_NUMBER_ID`, `WHATSAPP_TOKEN` (business-initiated messages need Meta-approved templates)
-- Email: `RESEND_API_KEY`, `EMAIL_FROM` (verified domain)
-- Maps: `GOOGLE_MAPS_API_KEY` (Geocoding API)
-
-## Before going live
-
-- Data on the web build lives in each browser's localStorage. For a team, plug a database (Supabase/Postgres) into `src/lib/store.ts`; the store already has one put/remove/subscribe seam.
-- Add login (Supabase Auth or Clerk) before exposing candidate data.
-- Get candidate consent and set a retention period under the DPDP Act.

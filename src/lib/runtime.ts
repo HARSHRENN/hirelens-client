@@ -30,3 +30,12 @@ export function cap<T = any>(name: string): Promise<T | null> {
   }
   return cache.get(name)! as Promise<T | null>
 }
+
+/* Where this copy of the app keeps its data:
+ *  - cloud: a signed-in recruiter's workspace on the server (the deployed product)
+ *  - demo: sample data in this browser only, no account (/demo)
+ *  - artifact: the claude.ai preview build */
+export type Mode = 'cloud' | 'demo' | 'artifact'
+let mode: Mode = TARGET === 'artifact' ? 'artifact' : 'cloud'
+export const MODE = () => mode
+export const setMode = (m: Mode) => { mode = m }

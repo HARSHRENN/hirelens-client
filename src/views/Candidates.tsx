@@ -4,7 +4,7 @@ import { TopBar } from '../components/TopBar'
 import { BandChip, Button, Dialog, Empty, Field, Groove, Input, LinkButton, ScoreCell, Select, Skeleton, StageTag, Textarea, useToast } from '../components/ui'
 import { clientResumePdf, redact } from '../lib/clientResume'
 import { getOriginal } from '../lib/files'
-import { canServerSend, candidateVars, gmailLink, saveFile, sendEmailWithFiles, sendWhatsApp, waLink } from '../lib/integrations'
+import { canServerSend, candidateVars, gmailLink, saveFile, sendEmailWithFiles, waLink } from '../lib/integrations'
 import { companiesCount, selfMatch } from '../lib/match'
 import { getState, put, useStages, useStore } from '../lib/store'
 import { stageLabel, type Candidate, type Job, type Remark, type Stage } from '../lib/types'
@@ -14,10 +14,9 @@ import { ago, csv, fill, fmtDays, fmtKm, fmtLpa, fmtYrs, uid } from '../lib/util
 /* The tracker: tick candidates down the side and fields across the top. Ticked rows
  * and ticked columns are what every export, mail and client share contains. */
 
-type ColId = 'date' | 'job' | 'match' | 'self' | 'total' | 'rel' | 'company' | 'companies' | 'cur' | 'exp' | 'notice' | 'location' | 'stage' | 'owner' | 'remark' | 'phone' | 'email'
+type ColId = 'date' | 'job' | 'match' | 'self' | 'total' | 'rel' | 'company' | 'companies' | 'cur' | 'exp' | 'notice' | 'location' | 'stage' | 'remark' | 'phone' | 'email'
 interface Col { id: ColId; label: string; num?: boolean; value: (c: Candidate, j?: Job) => string | number | null; sort?: (c: Candidate, j?: Job) => number | string }
 
-const ownerName = (id?: string) => (!id || id === 'admin' ? 'Super admin' : getState().config.recruiters.find((r) => r.id === id)?.name || 'Recruiter')
 const lastRemark = (c: Candidate) => [...c.remarks].sort((a, b) => b.at - a.at)[0]
 
 const COLS: Col[] = [
@@ -34,7 +33,6 @@ const COLS: Col[] = [
   { id: 'notice', label: 'Notice (days)', num: true, value: (c) => c.noticeDays, sort: (c) => c.noticeDays ?? 999 },
   { id: 'location', label: 'Location', value: (c, j) => `${c.currentLocation.label}${j?.workMode === 'remote' ? ' (remote role)' : c.distanceKm != null ? ` (${Math.round(c.distanceKm)} km)` : ''}`, sort: (c) => c.distanceKm ?? 1e6 },
   { id: 'stage', label: 'Stage', value: (c) => `${stageLabel(c.stage)}${c.shortlisted ? ', shortlisted' : ''}`, sort: (c) => c.stage },
-  { id: 'owner', label: 'Recruiter', value: (c) => ownerName(c.ownerId), sort: (c) => ownerName(c.ownerId) },
   { id: 'remark', label: 'Last remark', value: (c) => lastRemark(c)?.text || '', sort: (c) => lastRemark(c)?.at || 0 },
   { id: 'phone', label: 'Phone', value: (c) => c.phone },
   { id: 'email', label: 'Email', value: (c) => c.email },
@@ -50,7 +48,6 @@ export function Candidates() {
   const [q, setQ] = useState('')
   const [job, setJob] = useState('all')
   const [stage, setStage] = useState('all')
-  const [owner, setOwner] = useState('all')
   const [from, setFrom] = useState('')
   const [to, setTo] = useState('')
   const [sort, setSort] = useState<{ k: ColId | 'name'; dir: 1 | -1 }>({ k: 'date', dir: -1 })
@@ -70,11 +67,10 @@ export function Candidates() {
     return Object.values(cands)
       .filter((c) => job === 'all' || c.jobId === job)
       .filter((c) => stage === 'all' || (stage === 'short' ? c.shortlisted : c.stage === stage))
-      .filter((c) => owner === 'all' || (c.ownerId || 'admin') === owner)
       .filter((c) => c.createdAt >= f0 && c.createdAt <= t0)
       .filter((c) => !ql || [c.name, c.email, c.phone, c.currentLocation.label, c.currentCompany, ...c.skills].join(' ').toLowerCase().includes(ql))
       .sort((a, b) => { const x = key(a), y = key(b); return (x < y ? -1 : x > y ? 1 : 0) * sort.dir })
-  }, [cands, jobs, job, stage, owner, from, to, q, sort])
+  }, [cands, jobs, job, stage, from, to, q, sort])
 
   const picked = list.filter((c) => rows.has(c.id))
   const target = picked.length ? picked : list
@@ -117,7 +113,6 @@ export function Candidates() {
       </div>
       <div style={{ width: 200 }}><Select aria-label="Job" value={job} onChange={(e) => setJob(e.target.value)} options={[{ value: 'all', label: 'All jobs' }, ...Object.values(jobs).map((j) => ({ value: j.id, label: j.title }))]} /></div>
       <div style={{ width: 170 }}><Select aria-label="Stage" value={stage} onChange={(e) => setStage(e.target.value)} options={[{ value: 'all', label: 'Every stage' }, { value: 'short', label: 'Shortlisted' }, ...STAGES.map((s) => ({ value: s.id, label: s.label }))]} /></div>
-      <div style={{ width: 170 }}><Select aria-label="Recruiter" value={owner} onChange={(e) => setOwner(e.target.value)} options={[{ value: 'all', label: 'All recruiters' }, { value: 'admin', label: 'Super admin' }, ...cfg.recruiters.map((r) => ({ value: r.id, label: r.name }))]} /></div>
       <label className="row small" style={{ gap: 6 }}>From<input className="input" style={{ width: 150 }} type="date" value={from} onChange={(e) => setFrom(e.target.value)} /></label>
       <label className="row small" style={{ gap: 6 }}>To<input className="input" style={{ width: 150 }} type="date" value={to} onChange={(e) => setTo(e.target.value)} /></label>
       {(from || to) && <Button size="sm" variant="ghost" onClick={() => { setFrom(''); setTo('') }}>Clear dates</Button>}
@@ -153,7 +148,7 @@ export function Candidates() {
             total: fmtYrs(c.totalExp), rel: fmtYrs(c.relevantExp), company: c.currentCompany || '—', companies: companiesCount(c) ?? '—',
             cur: fmtLpa(c.currentCtcLpa), exp: fmtLpa(c.expectedCtcLpa), notice: fmtDays(c.noticeDays),
             location: <div className="who" style={{ textAlign: 'right', minWidth: 120 }}><span style={{ color: 'var(--color-ink)', fontFamily: 'var(--font-body)', fontSize: 'var(--text-sm)' }}>{c.currentLocation.label || '—'}</span><span>{j?.workMode === 'remote' ? 'remote role' : `${fmtKm(c.distanceKm)} to ${j?.location.label.split(',')[0] || 'job'}`}</span></div>,
-            stage: <StageTag stage={c.stage} />, owner: ownerName(c.ownerId),
+            stage: <StageTag stage={c.stage} />,
             remark: <div className="who" style={{ maxWidth: 240 }}><span style={{ color: 'var(--color-ink)', fontSize: 'var(--text-sm)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{last?.text || '—'}</span><span>{last ? ago(last.at) : ''}</span></div>,
             phone: <span className="fig">{c.phone || '—'}</span>, email: c.email || '—',
           }
@@ -197,7 +192,7 @@ function MailTracker({ who, rows, onClose }: { who: Candidate[]; rows: string[][
       <Field label="Subject"><Input value={subject} onChange={(e) => setSubject(e.target.value)} /></Field>
       <Field label="Message" className="span-2"><Textarea rows={5} value={note} onChange={(e) => setNote(e.target.value)} /></Field>
     </div>
-    <p className="xs muted">{rows.length - 1} rows, {rows[0]!.length} columns. Gmail draft: the CSV downloads, the table goes into the mail body, attach the CSV before sending.{canServerSend() ? ' Send with attachment uses your Resend key from Admin.' : ''}</p>
+    <p className="xs muted">{rows.length - 1} rows, {rows[0]!.length} columns. Gmail draft: the CSV downloads, the table goes into the mail body, attach the CSV before sending.{canServerSend() ? ' Send with attachment emails it from the platform.' : ''}</p>
   </Dialog>
 }
 
@@ -222,7 +217,7 @@ function ShareClient({ who, rows, onClose }: { who: Candidate[]; rows: (hideCont
       const base = c.name.replace(/[^\w ]+/g, '').trim().replace(/\s+/g, '-')
       if (format === 'client') zip.file(`resumes/${base}-${agency.replace(/\W+/g, '-')}.pdf`, clientResumePdf(c, jobs[c.jobId], agency))
       else {
-        const f = await getOriginal(c.id)
+        const f = await getOriginal(c.id, c.fileName)
         if (f) zip.file(`resumes/${base}-${f.name}`, f.blob)
         else { missing++; zip.file(`resumes/${base}-resume-text.txt`, c.resumeText) }
       }
@@ -265,7 +260,6 @@ function Broadcast({ channel, who, onClose }: { channel: 'whatsapp' | 'email'; w
   const [tid, setTid] = useState(list[0]?.id || '')
   const t = list.find((x) => x.id === tid)
   const [sent, setSent] = useState<Set<string>>(new Set())
-  const [busy, setBusy] = useState(false)
   const toast = useToast()
   const reach = who.filter((c) => (channel === 'whatsapp' ? c.phone : c.email))
   const msg = (c: Candidate) => fill(t?.body || '', candidateVars(c, jobs[c.jobId], cfg))
@@ -276,18 +270,13 @@ function Broadcast({ channel, who, onClose }: { channel: 'whatsapp' | 'email'; w
     <Field label="Template"><Select value={t?.id || ''} onChange={(e) => setTid(e.target.value)} options={list.length ? list.map((x) => ({ value: x.id, label: x.name })) : [{ value: '', label: 'No templates' }]} /></Field>
     {who.length > reach.length && <p className="small muted">{who.length - reach.length} ticked profile{who.length - reach.length > 1 ? 's have' : ' has'} no {channel === 'whatsapp' ? 'phone number' : 'email'} and {who.length - reach.length > 1 ? 'are' : 'is'} skipped.</p>}
     {channel === 'whatsapp' ? <>
-      <p className="small muted">Each message is personalised. Open them one by one and press send in WhatsApp{canServerSend() ? ', or send them all through your WhatsApp Business API number' : ''}. Every send is logged in the candidate's remarks.</p>
+      <p className="small muted">Each message is personalised. Open them one by one and press send in WhatsApp. Every send is logged in the candidate's remarks.</p>
       <ul className="queue">{reach.map((c) => (
         <li key={c.id}><span>{c.name}</span><span className="small muted fig">{c.phone}</span>
           <LinkButton size="sm" variant={sent.has(c.id) ? 'ghost' : 'card'} href={waLink(c.phone, msg(c))} onClick={() => { setSent((s) => new Set(s).add(c.id)); log(c, `WhatsApp opened (broadcast): ${t?.name || 'message'}`) }}>{sent.has(c.id) ? 'Opened' : 'Open'}</LinkButton></li>))}</ul>
-      {canServerSend() && <div><Button variant="ink" busy={busy} onClick={async () => {
-        setBusy(true); let ok = 0
-        for (const c of reach) { try { await sendWhatsApp(c.phone, msg(c)); ok++; log(c, `WhatsApp sent (broadcast): ${t?.name || 'message'}`) } catch (e: any) { toast(`${c.name}: ${e.message}`, { kind: 'error' }) } }
-        setBusy(false); toast(`${ok} of ${reach.length} sent`)
-      }}><Send size={14} />Send all via API</Button></div>}
     </> : <>
       <div className="preview-msg stock">{t?.subject && <b style={{ fontWeight: 500 }}>{fill(t.subject, { ...candidateVars(who[0]!, jobs[who[0]!.jobId], cfg) })}{'\n\n'}</b>}{generic}</div>
-      <p className="small muted">One Gmail draft with everyone in BCC, so no candidate sees the others. Names are replaced with "there". Sending stays manual; automated email is not part of this build.</p>
+      <p className="small muted">One Gmail draft with everyone in BCC, so no candidate sees the others. Names are replaced with "there". Bulk mail goes through your own Gmail so the platform's free email allowance stays free for invites, reminders and invoices.</p>
       <div><LinkButton variant="ink" href={`https://mail.google.com/mail/?view=cm&fs=1&bcc=${encodeURIComponent(reach.map((c) => c.email).join(','))}&su=${encodeURIComponent(fill(t?.subject || '', candidateVars(who[0]!, jobs[who[0]!.jobId], cfg)))}&body=${encodeURIComponent(generic)}`}
         onClick={() => { reach.forEach((c) => log(c, `Email drafted (broadcast): ${t?.name || 'message'}`)); toast(`${reach.length} logged`) }}><Mail size={14} />Open Gmail with {reach.length} in BCC</LinkButton></div>
     </>}

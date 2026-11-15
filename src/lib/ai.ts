@@ -1,31 +1,28 @@
-import { cap, TARGET } from './runtime'
-import { getState } from './store'
+import { api, loadConfig } from './cloud'
+import { cap, MODE } from './runtime'
 
 /* One door to a model.
- *  - artifact build + provider "builtin": Claude, through the artifact's `sample` capability
- *  - otherwise: the deployed /api/ai proxy, with the key from the admin panel
- *    (or the server's own env key when the panel is left blank) */
+ *  - artifact: Claude, through the artifact's `sample` capability
+ *  - cloud: the server's /api/ai with the platform's key (set by the admin; never in the browser)
+ *  - demo: no AI; parsing and scoring fall back to rules */
 
 export class AiUnavailable extends Error {}
 
 export async function aiStatus(): Promise<{ ok: boolean; via: string }> {
-  const s = getState().secrets
-  if (s.aiProvider === 'builtin') {
-    if (TARGET === 'artifact') {
-      const sample = await cap('sample')
-      return sample ? { ok: true, via: 'Claude (built in)' } : { ok: false, via: 'Claude (built in) is not available in this view' }
-    }
-    return { ok: true, via: 'Server default model' }
+  if (MODE() === 'artifact') {
+    const sample = await cap('sample')
+    return sample ? { ok: true, via: 'Claude (built in)' } : { ok: false, via: 'Claude (built in) is not available in this view' }
   }
-  const key = s.aiProvider === 'anthropic' ? s.anthropicKey : s.aiProvider === 'openai' ? s.openaiKey : s.geminiKey
-  return { ok: TARGET === 'web', via: `${s.aiProvider}${key ? '' : ' (server key)'}${TARGET === 'artifact' ? ', runs on the deployed app only' : ''}` }
+  if (MODE() === 'demo') return { ok: false, via: 'off in the demo' }
+  const c = await loadConfig()
+  return c.aiReady ? { ok: true, via: 'on' } : { ok: false, via: 'not set up by the admin yet' }
 }
 
 interface Opts { quick?: boolean; images?: Blob[]; signal?: AbortSignal; onText?: (t: string) => void }
 
 export async function complete(prompt: string, opts: Opts = {}): Promise<string> {
-  const s = getState().secrets
-  if (TARGET === 'artifact') { // outbound fetch is blocked on artifacts; Claude is the model here
+  if (MODE() === 'demo') throw new AiUnavailable('AI reading is off in the demo. Sign up to use it.')
+  if (MODE() === 'artifact') { // outbound fetch is blocked on artifacts; Claude is the model here
     const sample: any = await cap('sample')
     if (!sample) throw new AiUnavailable('AI is not available in this view.')
     try {
@@ -41,15 +38,8 @@ export async function complete(prompt: string, opts: Opts = {}): Promise<string>
       throw new Error(e?.message || 'The AI request failed.')
     }
   }
-  const key = s.aiProvider === 'anthropic' ? s.anthropicKey : s.aiProvider === 'openai' ? s.openaiKey : s.aiProvider === 'gemini' ? s.geminiKey : ''
   const images = opts.images ? await Promise.all(opts.images.map(blobToB64)) : undefined
-  const res = await fetch(`${s.apiBase || ''}/api/ai`, {
-    method: 'POST', signal: opts.signal,
-    headers: { 'content-type': 'application/json', ...(key ? { 'x-ai-key': key } : {}) },
-    body: JSON.stringify({ provider: s.aiProvider === 'builtin' ? '' : s.aiProvider, model: s.aiModel || undefined, prompt, quick: !!opts.quick, images }),
-  })
-  const j = await res.json().catch(() => ({}))
-  if (!res.ok) throw new Error(j.error || `AI request failed (${res.status})`)
+  const j = await api<{ text: string }>('ai', 'complete', { prompt, quick: !!opts.quick, images }, { signal: opts.signal })
   opts.onText?.(j.text)
   return j.text
 }

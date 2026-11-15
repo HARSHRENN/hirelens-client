@@ -8,7 +8,7 @@ import type { Job } from '../lib/types'
 
 export function Share({ job }: { job: Job }) {
   const cfg = useStore((s) => s.config)
-  const webhook = useStore((s) => s.secrets.webhookUrl)
+  const webhook = useStore((s) => s.config.webhookUrl)
   const links = shareLinks(job, cfg.companyName, cfg.careersUrl)
   const [which, setWhich] = useState<'long' | 'short'>('long')
   const [text, setText] = useState(links.long)

@@ -5,23 +5,27 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "vite build && node scripts/assemble.mjs",
+    "build": "node scripts/migrate.mjs && vite build && node scripts/assemble.mjs",
     "typecheck": "tsc -p tsconfig.app.json --noEmit",
     "build:artifact": "vite build --mode artifact",
     "lint": "oxlint",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "migrate": "node scripts/migrate.mjs"
   },
   "dependencies": {
+    "@supabase/supabase-js": "^2.119.0",
     "gsap": "^3.15.1",
     "jspdf": "^4.2.1",
     "jszip": "^3.10.2",
     "lucide-react": "^1.72.0",
     "mammoth": "^1.13.0",
     "pdfjs-dist": "^6.5.438",
+    "postgres": "^4.1.1",
     "react": "^19.3.1",
     "react-dom": "^19.3.1"
   },
   "devDependencies": {
+    "@electric-sql/pglite": "^0.5.16",
     "@types/node": "^24.19.2",
     "@types/react": "^19.3.0",
     "@types/react-dom": "^19.3.0",

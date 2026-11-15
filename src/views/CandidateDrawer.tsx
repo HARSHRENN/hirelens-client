@@ -2,7 +2,7 @@ import { Copy, Mail, MessageCircle, Pause, Send, Star, Trash2, X } from 'lucide-
 import { useEffect, useMemo, useState } from 'react'
 import { Button, Dialog, Drawer, Empty, Field, Groove, Input, LinkButton, MatchCard, Select, StageTag, Tabs, Textarea, useToast } from '../components/ui'
 import { geocode, km, mapsLink } from '../lib/geo'
-import { canServerSend, candidateVars, copy, gmailLink, sendEmail, sendWhatsApp, waLink } from '../lib/integrations'
+import { canServerSend, candidateVars, copy, gmailLink, sendEmail, waLink } from '../lib/integrations'
 import { companiesCount, rescore, selfMatch } from '../lib/match'
 import { getState, put, remove, useStages, useStore } from '../lib/store'
 import { stageLabel, type Candidate, type Remark, type Stage } from '../lib/types'
@@ -134,7 +134,6 @@ function Overview({ c }: { c: Candidate }) {
 function Contact({ c, onSent }: { c: Candidate; onSent: (kind: 'whatsapp' | 'email', text: string) => void }) {
   const job = useStore((s) => s.jobs[c.jobId])
   const cfg = useStore((s) => s.config)
-  const secrets = useStore((s) => s.secrets)
   const tmap = useStore((s) => s.templates)
   const templates = useMemo(() => Object.values(tmap), [tmap])
   const [channel, setChannel] = useState<'whatsapp' | 'email'>(c.phone ? 'whatsapp' : 'email')
@@ -151,13 +150,13 @@ function Contact({ c, onSent }: { c: Candidate; onSent: (kind: 'whatsapp' | 'ema
 
   const missing = channel === 'whatsapp' ? !c.phone : !c.email
   const unfilled = (body + subject).match(/\{\{\w+\}\}/g)
-  const apiReady = canServerSend() && (channel === 'whatsapp' ? true : true)
+  const apiReady = canServerSend() && channel === 'email'
 
   async function apiSend() {
     setBusy(true)
     try {
-      if (channel === 'whatsapp') await sendWhatsApp(c.phone, body); else await sendEmail(c.email, subject, body)
-      onSent(channel, `${channel === 'whatsapp' ? 'WhatsApp' : 'Email'} sent: ${t?.name || 'custom message'}`); toast('Message sent')
+      await sendEmail(c.email, subject, body)
+      onSent('email', `Email sent: ${t?.name || 'custom message'}`); toast(`Email sent to ${c.email}`)
     } catch (e: any) { toast(e.message, { kind: 'error' }) } finally { setBusy(false) }
   }
 
@@ -175,13 +174,12 @@ function Contact({ c, onSent }: { c: Candidate; onSent: (kind: 'whatsapp' | 'ema
       {channel === 'whatsapp'
         ? <LinkButton variant="ink" href={missing ? undefined : waLink(c.phone, body)} aria-disabled={missing} onClick={() => !missing && onSent('whatsapp', `WhatsApp opened: ${t?.name || 'custom message'}`)}><MessageCircle size={16} />Open in WhatsApp</LinkButton>
         : <LinkButton variant="ink" href={missing ? undefined : gmailLink(c.email, subject, body)} aria-disabled={missing} onClick={() => !missing && onSent('email', `Email drafted in Gmail: ${t?.name || 'custom message'}`)}><Mail size={16} />Open in Gmail</LinkButton>}
-      {apiReady && <Button busy={busy} disabled={missing} onClick={apiSend}><Send size={14} />Send now via API</Button>}
+      {apiReady && <Button busy={busy} disabled={missing} onClick={apiSend}><Send size={14} />Send now</Button>}
       <Button variant="ghost" onClick={async () => toast((await copy(channel === 'email' ? `Subject: ${subject}\n\n${body}` : body)) ? 'Message copied' : 'Copy blocked here')}><Copy size={14} />Copy</Button>
     </div>
     <p className="xs muted">
       {channel === 'whatsapp' ? 'Opens WhatsApp with the message ready; you press send. ' : 'Opens a Gmail draft; you press send. '}
-      {canServerSend() ? (channel === 'whatsapp' ? (secrets.waToken || secrets.waPhoneNumberId ? 'Send now uses your WhatsApp Business API number. Messages to someone who has not written in the last 24 hours must use a Meta-approved template.' : 'Add WhatsApp Business API keys in Admin to send from the app.') : (secrets.resendKey ? 'Send now delivers from your verified domain.' : 'Add a Resend key in Admin to send from the app.'))
-        : 'Sending straight from the app works on the deployed version, with keys from Admin.'} Every message is logged in Remarks.
+      {channel === 'email' && canServerSend() ? 'Send now emails it from the platform, with your address as reply-to. ' : ''}Every message is logged in Remarks.
     </p>
   </section>
 }

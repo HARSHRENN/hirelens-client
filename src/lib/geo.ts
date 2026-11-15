@@ -1,9 +1,9 @@
-import { TARGET } from './runtime'
-import { getState } from './store'
+import { api } from './cloud'
+import { MODE } from './runtime'
 import type { Place } from './types'
 
 // Offline gazetteer: Indian hiring hubs and Mumbai/Pune/Bengaluru/NCR localities.
-// Used first; the Google Maps key (deployed app) resolves anything not listed here.
+// Used first; anything not listed is looked up on OpenStreetMap through the server (free, no key).
 const P: Record<string, [number, number]> = {
   mumbai: [19.076, 72.8777], 'navi mumbai': [19.033, 73.0297], thane: [19.2183, 72.9781], andheri: [19.1136, 72.8697],
   malad: [19.1874, 72.8484], goregaon: [19.1663, 72.8526], powai: [19.1176, 72.906], bkc: [19.0662, 72.8656],
@@ -35,16 +35,10 @@ export function lookup(label: string): Place {
 export async function geocode(label: string): Promise<Place> {
   const local = lookup(label)
   if (local.lat != null || !label.trim()) return local
-  const s = getState().secrets
-  if (TARGET !== 'web') return local
+  if (MODE() !== 'cloud') return local
   try {
-    const r = await fetch(`${s.apiBase || ''}/api/geocode`, {
-      method: 'POST', headers: { 'content-type': 'application/json', ...(s.googleMapsKey ? { 'x-maps-key': s.googleMapsKey } : {}) },
-      body: JSON.stringify({ address: label + ', India' }),
-    })
-    if (!r.ok) return local
-    const j = await r.json()
-    return j.lat != null ? { label, lat: j.lat, lng: j.lng } : local
+    const j = await api<{ lat: number | null; lng: number | null }>('app', 'geocode', { q: `${label}, India` })
+    return j.lat != null ? { label, lat: j.lat, lng: j.lng! } : local
   } catch { return local }
 }
 

@@ -11,6 +11,7 @@ export const DEFAULT_TEMPLATES: Omit<Template, 'id'>[] = [
   { channel: 'whatsapp', name: 'Interview reminder', body: 'Hi {{name}}, a reminder that your {{role}} interview is today at {{interviewTime}}. Meet link: {{meetLink}}. All the best!' },
   { channel: 'email', name: 'First contact', subject: '{{role}} opportunity at {{company}}', body: 'Hi {{name}},\n\nI came across your profile and think you would be a strong fit for our {{role}} opening in {{location}}.\n\nWould you have 15 minutes this week for a quick call? Please also share your current CTC, expected CTC and notice period.\n\nRegards,\n{{recruiter}}\n{{company}}' },
   { channel: 'email', name: 'Interview invite', subject: 'Interview scheduled: {{role}}', body: 'Hi {{name}},\n\nYour interview for {{role}} is scheduled for {{interviewTime}}.\n\nGoogle Meet: {{meetLink}}\n\nPlease keep your updated resume handy. Reply to this email if you need a different slot.\n\nRegards,\n{{recruiter}}\n{{company}}' },
+  { channel: 'email', name: 'Interview reminder', subject: 'Reminder: your {{role}} interview today at {{interviewTime}}', body: 'Hi {{name}},\n\nA quick reminder that your interview for {{role}} is today at {{interviewTime}}.\n\nJoin here: {{meetLink}}\n\nPlease join 5 minutes early and keep your updated resume handy. Reply to this email if anything has changed.\n\nAll the best,\n{{recruiter}}\n{{company}}' },
   { channel: 'email', name: 'Not moving ahead', subject: 'Update on your {{role}} application', body: 'Hi {{name}},\n\nThank you for your time. We will not be moving ahead with your application for {{role}} at this stage. We will keep your profile on file for future roles that match.\n\nRegards,\n{{recruiter}}\n{{company}}' },
 ]
 
@@ -67,8 +68,7 @@ export async function loadSample() {
 
   const cfg = getState().config
   const w = cfg.weights
-  const owners = [...cfg.recruiters.map((r) => r.id), 'admin']
-  jobs.forEach((j, n) => { j.ownerId = owners[n % owners.length]; j.ctcMinLpa = Math.round(j.ctcMaxLpa * 0.7) })
+  jobs.forEach((j) => { j.ctcMinLpa = Math.round(j.ctcMaxLpa * 0.7) })
   for (const j of jobs) await put('jobs', j)
   const pids: string[] = []
   for (const [n, [name, expertise, cal]] of PANEL.entries()) {
@@ -125,7 +125,7 @@ export async function loadSample() {
       },
       stage, shortlisted: s.score >= cfg.shortlistAt, remarks,
       interviewAt, meetLink: interviewAt ? 'https://meet.google.com/abc-defg-hij' : undefined,
-      ownerId: owners[i % owners.length], employment: makeEmployment(company, role, tot, i, now), interviews,
+      employment: makeEmployment(company, role, tot, i, now), interviews,
       selfRatings: RATED.has(name) ? Object.fromEntries([...j.mustSkills, ...j.niceSkills].map((k, n) => [k, skills.includes(k) ? 4 + ((i + n) % 2) : 2])) : undefined,
       createdAt: created, updatedAt: now,
     }
@@ -150,9 +150,7 @@ export async function loadSample() {
     },
   })
   if (!getState().config.recruiterName) await setConfig({ recruiterName: 'Riya Sharma' })
-  // a free trial two days into its week, billed to a fictional customer
-  const b = getState().config.billing
-  await setConfig({ billing: { ...b, trialDays: 7, trialStart: now - 2 * D - 5 * H, saved: true, invoices: [], buyer: { name: 'Example Staffing Pvt Ltd', address: 'Andheri East, Mumbai 400069, Maharashtra', gstin: '', email: 'accounts.demo@example.com' } } })
+  if (!getState().config.companyName) await setConfig({ companyName: 'Example Staffing' })
 }
 
 const PANEL: [string, string, string][] = [

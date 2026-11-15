@@ -4,15 +4,14 @@ import { useEffect, useState } from 'react'
  * artifact passes through, and it works the same on the deployed app. */
 export type Route =
   | { name: 'dashboard' } | { name: 'jobs' } | { name: 'job'; id: string; tab?: string }
-  | { name: 'candidates' } | { name: 'pipeline' } | { name: 'outreach' } | { name: 'admin' } | { name: 'panelists' } | { name: 'billing' }
+  | { name: 'candidates' } | { name: 'pipeline' } | { name: 'outreach' } | { name: 'settings' } | { name: 'panelists' } | { name: 'billing' }
 
 export function parse(h: string): Route {
   const s = h.replace(/^#/, '')
   const job = s.match(/^job-([a-z0-9_]+?)(?:-(candidates|ideal|share|calibration|details))?$/i)
   if (job) return { name: 'job', id: job[1]!, tab: job[2] }
-  if (['jobs', 'candidates', 'pipeline', 'outreach', 'admin', 'dashboard', 'panelists', 'billing'].includes(s)) return { name: s } as Route
-  // the deployed app also answers at /admin
-  if (!s && /\/admin\/?$/.test(location.pathname)) return { name: 'admin' }
+  if (['jobs', 'candidates', 'pipeline', 'outreach', 'settings', 'dashboard', 'panelists', 'billing'].includes(s)) return { name: s } as Route
+  if (s === 'admin') return { name: 'settings' } // old links
   return { name: 'dashboard' }
 }
 
