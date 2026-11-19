@@ -16,7 +16,7 @@ interface Settings {
   productName: string; aiProvider: string; aiModel: string; emailFrom: string; replyTo: string
   openaiKeySet: boolean; openaiKeyHint: string; anthropicKeySet: boolean; anthropicKeyHint: string; geminiKeySet: boolean; geminiKeyHint: string; resendKeySet: boolean; resendKeyHint: string
   trialDays: number; planName: string; price: number; taxPct: number; seller: { name: string; address: string; gstin: string }
-  emailDailyLimit: number; emailMonthlyLimit: number; userEmailDailyLimit: number; aiDailyLimit: number
+  emailDailyLimit: number; emailMonthlyLimit: number; userEmailDailyLimit: number; aiDailyLimit: number; demoAiDailyLimit: number
 }
 interface Overview {
   dbConnected: boolean; settings: Settings; users: User[]; invoices: Record<string, any>[]; cronSecret: boolean
@@ -231,8 +231,9 @@ function SettingsTab({ d, reload }: { d: Overview; reload: () => void }) {
         <Field label="Model" hint="Optional. OpenAI default gpt-5.6-terra, with gpt-5.6-luna for quick tasks"><Input value={f.aiModel} onChange={(e) => set({ aiModel: e.target.value.trim() })} placeholder="Provider default" /></Field>
         {keyField(aiKey, `${f.aiProvider === 'anthropic' ? 'Anthropic' : f.aiProvider === 'gemini' ? 'Gemini' : 'OpenAI'} API key`, f.aiProvider === 'anthropic' ? 'sk-ant-…' : f.aiProvider === 'gemini' ? 'AIza…' : 'sk-…')}
         <Field label="AI reads per recruiter per day" hint="Protects your credits from one heavy user"><Input type="number" min={0} value={f.aiDailyLimit} onChange={(e) => set({ aiDailyLimit: +e.target.value })} /></Field>
+        <Field label="AI reads per day in the demo" hint="Shared by every demo visitor, at most 6 each. 0 turns AI off in the demo"><Input type="number" min={0} value={f.demoAiDailyLimit ?? 20} onChange={(e) => set({ demoAiDailyLimit: +e.target.value })} /></Field>
         <div className="span-2 row">
-          <Button variant="ink" busy={busy === 'AI settings'} onClick={() => save(['aiProvider', 'aiModel', aiKey, 'aiDailyLimit'], 'AI settings')}>Save AI settings</Button>
+          <Button variant="ink" busy={busy === 'AI settings'} onClick={() => save(['aiProvider', 'aiModel', aiKey, 'aiDailyLimit', 'demoAiDailyLimit'], 'AI settings')}>Save AI settings</Button>
           <Button busy={busy === 'ai'} onClick={() => test('ai', async () => `Connected. The model replied "${(await api<{ text: string }>('admin', 'test-ai')).text}".`)}>Test AI</Button>
           {msg?.k === 'ai' && <span className="small" style={{ color: msg.ok ? 'var(--color-success)' : 'var(--color-error)' }}>{msg.t}</span>}
         </div>

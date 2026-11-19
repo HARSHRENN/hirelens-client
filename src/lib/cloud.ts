@@ -10,6 +10,7 @@ export interface PublicConfig {
   productName?: string
   emailReady?: boolean
   aiReady?: boolean
+  demoAi?: boolean
   schemaReady?: boolean
 }
 

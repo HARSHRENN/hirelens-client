@@ -4,7 +4,7 @@ import { cap, MODE } from './runtime'
 /* One door to a model.
  *  - artifact: Claude, through the artifact's `sample` capability
  *  - cloud: the server's /api/ai with the platform's key (set by the admin; never in the browser)
- *  - demo: no AI; parsing and scoring fall back to rules */
+ *  - demo: the server's /api/ai 'demo' action, under a small shared daily cap (off when the admin sets it to 0) */
 
 export class AiUnavailable extends Error {}
 
@@ -13,7 +13,10 @@ export async function aiStatus(): Promise<{ ok: boolean; via: string }> {
     const sample = await cap('sample')
     return sample ? { ok: true, via: 'Claude (built in)' } : { ok: false, via: 'Claude (built in) is not available in this view' }
   }
-  if (MODE() === 'demo') return { ok: false, via: 'off in the demo' }
+  if (MODE() === 'demo') {
+    const c = await loadConfig().catch(() => null)
+    return c?.demoAi ? { ok: true, via: 'on in the demo, a few reads a day' } : { ok: false, via: 'off in the demo' }
+  }
   const c = await loadConfig()
   return c.aiReady ? { ok: true, via: 'on' } : { ok: false, via: 'not set up by the admin yet' }
 }
@@ -21,7 +24,10 @@ export async function aiStatus(): Promise<{ ok: boolean; via: string }> {
 interface Opts { quick?: boolean; images?: Blob[]; signal?: AbortSignal; onText?: (t: string) => void }
 
 export async function complete(prompt: string, opts: Opts = {}): Promise<string> {
-  if (MODE() === 'demo') throw new AiUnavailable('AI reading is off in the demo. Sign up to use it.')
+  if (MODE() === 'demo') {
+    const c = await loadConfig().catch(() => null)
+    if (!c?.demoAi) throw new AiUnavailable('AI reading is off in the demo. Sign up to use it.')
+  }
   if (MODE() === 'artifact') { // outbound fetch is blocked on artifacts; Claude is the model here
     const sample: any = await cap('sample')
     if (!sample) throw new AiUnavailable('AI is not available in this view.')
@@ -39,7 +45,7 @@ export async function complete(prompt: string, opts: Opts = {}): Promise<string>
     }
   }
   const images = opts.images ? await Promise.all(opts.images.map(blobToB64)) : undefined
-  const j = await api<{ text: string }>('ai', 'complete', { prompt, quick: !!opts.quick, images }, { signal: opts.signal })
+  const j = await api<{ text: string }>('ai', MODE() === 'demo' ? 'demo' : 'complete', { prompt, quick: !!opts.quick, images }, { signal: opts.signal })
   opts.onText?.(j.text)
   return j.text
 }

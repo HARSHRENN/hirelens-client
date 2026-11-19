@@ -184,7 +184,7 @@ function Workspace({ me }: { me?: Me }) {
   return (
     <UiCtx.Provider value={ctx}>
       <PressFilter />
-      {mode === 'demo' && <div className="demo-bar" role="note">Demo workspace: sample data in this browser only, AI reading off. <a href="/signup">Start your free trial</a> to save your work and use AI.</div>}
+      {mode === 'demo' && <div className="demo-bar" role="note">Demo workspace: sample data in this browser only, with a few AI reads a day. <a href="/signup">Start your free trial</a> to save your work and use AI fully.</div>}
       <div className="shell">
         {open && <div className="scrim" onClick={() => setOpen(false)} />}
         <nav className="rail" data-open={open} aria-label="Main">

@@ -12,6 +12,7 @@ export const DEFAULT_SETTINGS = {
   emailMonthlyLimit: 3000,
   userEmailDailyLimit: 40, // per recruiter, for emails they send by hand
   aiDailyLimit: 300, // AI calls per recruiter per day
+  demoAiDailyLimit: 20, // AI calls per day across every demo visitor together; 0 turns AI off in the demo
 }
 export const SECRET_KEYS = ['openaiKey', 'anthropicKey', 'geminiKey', 'resendKey']
 
@@ -48,7 +49,7 @@ export async function saveSettings(patch) {
     }
     if (k === 'seller') next.seller = { ...(cur.seller || {}), ...v }
     else if (k === 'trialDays') next.trialDays = Math.min(7, Math.max(3, Math.round(+v || 7)))
-    else if (['price', 'taxPct', 'emailDailyLimit', 'emailMonthlyLimit', 'userEmailDailyLimit', 'aiDailyLimit'].includes(k)) next[k] = Math.max(0, +v || 0)
+    else if (['price', 'taxPct', 'emailDailyLimit', 'emailMonthlyLimit', 'userEmailDailyLimit', 'aiDailyLimit', 'demoAiDailyLimit'].includes(k)) next[k] = Math.max(0, +v || 0)
     else next[k] = typeof v === 'string' ? v.trim() : v
   }
   const { error } = await db().from('platform_settings').upsert({ id: 1, data: next, updated_at: new Date().toISOString() })

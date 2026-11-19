@@ -23,7 +23,7 @@ export default route({
     if (!isConfigured()) return { configured: false }
     let s = null
     try { s = await getSettings() } catch { /* tables not created yet */ }
-    return { configured: true, supabaseUrl: supaUrl(), supabaseAnonKey: supaAnon(), productName: s?.productName || 'HireLens', emailReady: !!(s && emailReady(s)), aiReady: !!s && !!(s.openaiKey || s.anthropicKey || s.geminiKey), schemaReady: !!s }
+    return { configured: true, supabaseUrl: supaUrl(), supabaseAnonKey: supaAnon(), productName: s?.productName || 'HireLens', emailReady: !!(s && emailReady(s)), aiReady: !!s && !!(s.openaiKey || s.anthropicKey || s.geminiKey), demoAi: !!s && !!(s.openaiKey || s.anthropicKey || s.geminiKey) && s.demoAiDailyLimit > 0, schemaReady: !!s }
   },
 
   async me(req) {

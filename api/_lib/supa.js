@@ -50,9 +50,10 @@ export async function logUsage(owner, kind, detail = '', ok = true, error = null
   catch (e) { console.warn('usage log failed', e) }
 }
 
-export async function countUsage({ owner, kindLike, since }) {
+export async function countUsage({ owner, kindLike, since, detail }) {
   let q = db().from('usage_log').select('id', { count: 'exact', head: true }).like('kind', kindLike).eq('ok', true).gte('at', new Date(since).toISOString())
   if (owner) q = q.eq('owner', owner)
+  if (detail) q = q.eq('detail', detail)
   const { count } = await q
   return count || 0
 }
