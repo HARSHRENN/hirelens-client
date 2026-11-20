@@ -47,3 +47,38 @@ npm run typecheck
 npm run build            # migrates the database if connected, then builds out/
 npm run build:artifact   # single-file claude.ai preview
 ```
+
+## Fresh client-owned setup
+
+Use the existing application code with a new Vercel project and new Supabase
+project owned by the client. Start with no migrated users, records or resumes.
+
+1. Sign up or sign in to Supabase using the client's account and create a project.
+2. In that project's SQL Editor, run `supabase/schema.sql`. This is a snapshot of
+   `api/_lib/schema.js`; regenerate it when changing the schema. It creates the
+   application tables and row-level security policies, not sample users or data.
+3. Create a separate Vercel project under the client's account. Deploy local
+   sources without linking GitHub if repository pushes are not desired.
+4. Connect the new Supabase project through Vercel Marketplace, or configure
+   `SUPABASE_URL`, `SUPABASE_PUBLISHABLE_KEY`, `SUPABASE_SECRET_KEY` and
+   `POSTGRES_URL_NON_POOLING` from the new project. Use a separate Supabase project
+   for preview/development before the client begins using production.
+5. Set a new `ADMIN_PASSWORD_HASH`, `ADMIN_SESSION_SECRET` and `CRON_SECRET` in
+   the new Vercel project. Never reuse the inherited admin credentials.
+6. Set `APP_URL` to the intended deployment origin and configure the client's AI
+   provider and Resend sender in `/admin`. A Gmail address alone does not provide
+   a verified sending domain for Resend.
+7. Deploy, check signup/login and create a test recruiter. `/demo` automatically
+   loads fictional sample data in browser storage. A signed-in test workspace
+   can load sample data from Settings; keep this in the development database.
+8. Verify job/candidate saving, resume upload/download, AI matching, and email
+   delivery before client use. Test emails must use explicitly agreed recipients.
+
+The build currently runs the schema migration automatically when a database URL
+is configured. Check the selected Vercel project and database before deploying.
+The old project uses Supabase reference `xszucqaezqgzvsbdkist`; do not copy that
+project's connection values into the fresh setup.
+
+For local API development, use `vercel dev` after linking the **new** project and
+providing Development environment variables. Plain `npm run dev` serves only
+the frontend. Secrets and `.vercel` project links are excluded from Git.

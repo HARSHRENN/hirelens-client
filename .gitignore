@@ -28,3 +28,6 @@ dist-site
 deploy
 .hallmark
 .env
+.vercel
+.env.*
+!.env.example

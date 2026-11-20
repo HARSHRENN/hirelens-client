@@ -89,6 +89,14 @@ do $$ begin
   revoke all on function public.next_invoice_no() from anon, authenticated;
 exception when undefined_object then null; end $$;
 
+-- New Supabase projects may not grant service_role access to new objects.
+-- The server needs table privileges as well as its RLS bypass.
+grant usage on schema public to service_role;
+grant all on public.profiles, public.docs, public.invoices,
+  public.platform_settings, public.usage_log, public.geocache to service_role;
+grant usage, select on sequence public.usage_log_id_seq, public.invoice_seq to service_role;
+grant execute on function public.next_invoice_no() to service_role;
+
 create or replace function public.is_active_user() returns boolean
   language sql stable security definer set search_path = public as $$
   select exists (select 1 from public.profiles p where p.id = auth.uid() and p.status = 'active')
@@ -145,6 +153,7 @@ from public.profiles p
 left join public.docs d on d.owner = p.id
 group by p.id;
 revoke all on public.admin_user_stats from public;
+grant select on public.admin_user_stats to service_role;
 do $$ begin
   revoke all on public.admin_user_stats from anon, authenticated;
 exception when undefined_object then null; end $$;
