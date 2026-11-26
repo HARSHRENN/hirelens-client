@@ -5,9 +5,12 @@ import { completeJson } from '../lib/ai'
 import { geocode } from '../lib/geo'
 import { put, useStore } from '../lib/store'
 import type { Job } from '../lib/types'
+import { useMe } from '../lib/me'
+import { MODE } from '../lib/runtime'
+import { calendarDate, vacancyDate, turnaroundDays, prepareJobDates } from '../lib/jobDates'
 import { uid } from '../lib/util'
 
-const TECHS = ['Java', 'Frontend', 'Full stack', 'Mobile', 'Data', 'AI / ML', 'DevOps / Cloud', 'QA / Testing', '.NET', 'Python', 'SAP / ERP', 'Design', 'Non-tech']
+const TECHS = ['Java', 'Frontend', 'Full stack', 'Mobile', 'Data', 'AI / ML', 'DevOps / Cloud', 'QA / Testing', '.NET', 'Python', 'SAP / ERP', 'Design', 'Non-tech', 'Others']
 
 const blank = (): Job => ({
   id: uid('j'), title: '', client: '', tech: 'Java', location: { label: '' }, workMode: 'onsite',
@@ -16,7 +19,10 @@ const blank = (): Job => ({
 })
 
 export function JobForm({ job, onClose, onSaved }: { job?: Job; onClose: () => void; onSaved?: (j: Job) => void }) {
+  const { me } = useMe()
+  const canEditCloseDate = MODE() !== 'cloud' || !!me?.isAdmin
   const [j, setJ] = useState<Job>(job ? structuredClone(job) : blank())
+  const [useCustomCategory, setUseCustomCategory] = useState(() => !!job && !TECHS.includes(job.tech))
   const [busy, setBusy] = useState<'' | 'write' | 'read' | 'save'>('')
   const [err, setErr] = useState('')
   const [touched, setTouched] = useState(false)
@@ -35,8 +41,8 @@ Experience ${j.expMin}-${j.expMax} years, budget ${j.ctcMinLpa ? j.ctcMinLpa + '
 Recruiter notes: ${j.description || 'none'}
 Return {"description": string (plain text, 5-8 short lines: what they will do, then what they need; no headings, no emoji, no marketing fluff),
 "mustSkills": string[] (4-6), "niceSkills": string[] (2-4), "expMin": number, "expMax": number,
-"tech": one of ${JSON.stringify(TECHS)}}`)
-      set({ description: r.description, mustSkills: r.mustSkills?.length ? r.mustSkills : j.mustSkills, niceSkills: r.niceSkills || j.niceSkills, expMin: r.expMin ?? j.expMin, expMax: r.expMax ?? j.expMax, tech: TECHS.includes(r.tech) ? r.tech : j.tech })
+"tech": string (technical or non-technical category; examples: ${JSON.stringify(TECHS)}, custom categories allowed)}`)
+      set({ description: r.description, mustSkills: r.mustSkills?.length ? r.mustSkills : j.mustSkills, niceSkills: r.niceSkills || j.niceSkills, expMin: r.expMin ?? j.expMin, expMax: r.expMax ?? j.expMax, tech: r.tech?.trim() || j.tech })
     } catch (e: any) { setErr(e.message) } finally { setBusy('') }
   }
 
@@ -47,12 +53,12 @@ Return {"description": string (plain text, 5-8 short lines: what they will do, t
       const r = await completeJson<Partial<Job> & { location?: string }>(
         `Read this job description and extract fields. Use null where not stated.
 ${j.description.slice(0, 8000)}
-Return {"title": string, "client": string|null, "location": string|null, "workMode": "onsite"|"hybrid"|"remote"|null, "expMin": number|null, "expMax": number|null, "ctcMaxLpa": number|null, "noticeMaxDays": number|null, "mustSkills": string[], "niceSkills": string[], "tech": one of ${JSON.stringify(TECHS)}}`)
+Return {"title": string, "client": string|null, "location": string|null, "workMode": "onsite"|"hybrid"|"remote"|null, "expMin": number|null, "expMax": number|null, "ctcMaxLpa": number|null, "noticeMaxDays": number|null, "mustSkills": string[], "niceSkills": string[], "tech": string (technical or non-technical category; examples: ${JSON.stringify(TECHS)}, custom categories allowed)}`)
       const loc = r.location ? await geocode(r.location as any) : j.location
       set({
         title: r.title || j.title, client: r.client || j.client, location: loc, workMode: (r.workMode as any) || j.workMode,
         expMin: r.expMin ?? j.expMin, expMax: r.expMax ?? j.expMax, ctcMaxLpa: r.ctcMaxLpa ?? j.ctcMaxLpa, noticeMaxDays: r.noticeMaxDays ?? j.noticeMaxDays,
-        mustSkills: r.mustSkills?.length ? r.mustSkills : j.mustSkills, niceSkills: r.niceSkills || j.niceSkills, tech: TECHS.includes(r.tech as string) ? r.tech! : j.tech,
+        mustSkills: r.mustSkills?.length ? r.mustSkills : j.mustSkills, niceSkills: r.niceSkills || j.niceSkills, tech: r.tech?.trim() || j.tech,
       })
     } catch (e: any) { setErr(e.message) } finally { setBusy('') }
   }
@@ -62,16 +68,20 @@ Return {"title": string, "client": string|null, "location": string|null, "workMo
     if (!j.title.trim() || !j.location.label.trim() || !j.mustSkills.length) {
       (document.querySelector('[aria-invalid="true"]') as HTMLElement | null)?.focus(); return
     }
-    setBusy('save')
-    const loc = j.location.lat != null ? j.location : await geocode(j.location.label)
-    const saved = { ...j, location: loc, expMax: Math.max(j.expMax, j.expMin) }
-    await put('jobs', saved)
-    setBusy(''); toast(job ? 'Job updated' : 'Job created')
-    if (loc.lat == null && j.workMode !== 'remote') toast(`Could not place “${loc.label}” on the map, so distances show as unknown. Use a city name, or add a Google Maps key in Admin.`, { kind: 'error' })
-    onSaved?.(saved); onClose()
+    setBusy('save'); setErr('')
+    try {
+      const loc = j.location.lat != null ? j.location : await geocode(j.location.label)
+      const saved = prepareJobDates({ ...j, tech: j.tech.trim() || 'Others', location: loc, expMax: Math.max(j.expMax, j.expMin) }, job, canEditCloseDate)
+      await put('jobs', saved)
+      toast(job ? 'Job updated' : 'Job created')
+      if (loc.lat == null && j.workMode !== 'remote') toast(`Could not place “${loc.label}” on the map, so distances show as unknown.`, { kind: 'error' })
+      onSaved?.(saved); onClose()
+    } catch (e) { setErr((e as Error).message) }
+    finally { setBusy('') }
   }
 
   const inv = (b: boolean) => (touched && b ? 'true' : undefined)
+  const customCategory = useCustomCategory || !TECHS.includes(j.tech)
 
   return (
     <Dialog title={job ? 'Edit job' : 'New job'} onClose={onClose} wide>
@@ -96,12 +106,26 @@ Return {"title": string, "client": string|null, "location": string|null, "workMo
           <Field label="Max notice (days)"><Input type="number" inputMode="numeric" min={0} step={15} value={j.noticeMaxDays} onChange={(e) => set({ noticeMaxDays: +e.target.value })} /></Field>
           <Field label="Openings"><Input type="number" inputMode="numeric" min={1} value={j.openings} onChange={(e) => set({ openings: +e.target.value })} /></Field>
         </div>
-        <Field label="Technology" hint="Groups the dashboard bifurcation">
-          <Select value={j.tech} onChange={(e) => set({ tech: e.target.value })} options={TECHS.map((t) => ({ value: t, label: t }))} />
+        <Field label="Skill / requirement category" hint="Open the dropdown to see all categories, or choose Custom category to type your own.">
+          <Select value={customCategory ? '__custom__' : j.tech} options={[...TECHS.map(t => ({ value: t, label: t })), { value: '__custom__', label: 'Custom category (type your own)' }]} onChange={e => {
+            const custom = e.target.value === '__custom__'
+            setUseCustomCategory(custom)
+            set({ tech: custom ? (TECHS.includes(j.tech) ? '' : j.tech) : e.target.value })
+          }} />
         </Field>
         <Field label="Status">
-          <Select value={j.status} onChange={(e) => set({ status: e.target.value as Job['status'] })} options={[{ value: 'open', label: 'Open' }, { value: 'paused', label: 'Paused' }, { value: 'closed', label: 'Closed' }]} />
+          <Select value={j.status} onChange={(e) => { const status = e.target.value as Job['status']; set({ status, positionClosedDate: status === 'closed' ? j.positionClosedDate || calendarDate(Date.now()) : undefined }) }} options={[{ value: 'open', label: 'Open' }, { value: 'paused', label: 'Paused' }, { value: 'closed', label: 'Closed' }]} />
         </Field>
+        {customCategory && <Field className="span-2" label="Custom skill / requirement category" hint="Technical or non-technical, for example Finance, Sales or Microsoft Fabric.">
+          <Input value={j.tech} onChange={e => { setUseCustomCategory(true); set({ tech: e.target.value }) }} placeholder="Type your category" />
+        </Field>}
+        <Field label="Vacancy creation date" hint="Recorded automatically when the job is created.">
+          <Input type="date" value={vacancyDate(j)} readOnly />
+        </Field>
+        <Field label="Position close date (PCD)" hint={canEditCloseDate ? 'Recorded when closed. An admin can correct or postpone this date.' : 'Recorded automatically when closed. Contact the admin for date corrections.'}>
+          <Input type="date" min={vacancyDate(j)} value={j.positionClosedDate || ''} disabled={j.status !== 'closed'} readOnly={!canEditCloseDate} onChange={e => set({ positionClosedDate: e.target.value || undefined })} />
+        </Field>
+        <p className="small muted span-2">Turnaround time (TAT): <b>{turnaroundDays(j) == null ? '—' : `${turnaroundDays(j)} days`}</b>. Calendar days from vacancy creation to position close. Reopening clears the close date.</p>
         <Field label="Must-have skills" error={inv(!j.mustSkills.length) && 'Add at least one, matching scores against these.'} hint="Press Enter or comma after each">
           <ChipInput value={j.mustSkills} onChange={(v) => set({ mustSkills: v })} placeholder="Java, Spring Boot" />
         </Field>

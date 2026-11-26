@@ -1,3 +1,4 @@
+import { trackerHtml, trackerText } from '../../shared/communication.js'
 import { fail, isEmail } from './http.js'
 import { emailReady, getSettings } from './settings.js'
 import { countUsage, logUsage, startOfUtcDay, startOfUtcMonth } from './supa.js'
@@ -6,10 +7,10 @@ const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&l
 const linkify = (s) => esc(s).replace(/https?:\/\/[^\s<]+/g, (u) => `<a href="${u}">${u}</a>`)
 
 /** A plain, readable HTML version of a text email: the product's mark, the text, a quiet footer. */
-function htmlOf(text, product) {
+function htmlOf(text, product, table) {
   const paras = String(text).trim().split(/\n{2,}/).map((p) => `<p style="margin:0 0 14px">${linkify(p).replace(/\n/g, '<br>')}</p>`).join('')
   return `<!doctype html><html><body style="margin:0;background:#f5f8fc;padding:24px 12px;font-family:Helvetica,Arial,sans-serif;color:#06142e">
-<table role="presentation" width="100%" style="max-width:560px;margin:0 auto;background:#ffffff;border-radius:12px;border:1px solid #dbe3ef"><tr><td style="padding:28px 28px 12px;font-size:15px;line-height:1.55">${paras}</td></tr>
+<table role="presentation" width="100%" style="max-width:560px;margin:0 auto;background:#ffffff;border-radius:12px;border:1px solid #dbe3ef"><tr><td style="padding:28px 28px 12px;font-size:15px;line-height:1.55">${paras}${table?.length ? trackerHtml(table) : ''}</td></tr>
 <tr><td style="padding:0 28px 22px;font-size:12px;color:#5b6b85">Sent with ${esc(product)}</td></tr></table></body></html>`
 }
 
@@ -17,7 +18,7 @@ function htmlOf(text, product) {
  * Send one email through Resend, inside the platform's caps.
  * kind: 'email:manual' | 'email:invite' | 'email:reminder' | 'email:invoice' | 'email:auth' | 'email:test'
  */
-export async function sendMail({ owner = null, kind, to, cc = [], subject, text, attachments = [], replyTo, userCap = false }) {
+export async function sendMail({ owner = null, kind, to, cc = [], subject, text, attachments = [], replyTo, userCap = false, table }) {
   const s = await getSettings()
   if (!emailReady(s)) fail(503, 'Email is not set up yet. The platform admin adds a Resend key and sender address in /admin.')
   const toList = [].concat(to).map((x) => String(x || '').trim()).filter(isEmail)
@@ -41,7 +42,7 @@ export async function sendMail({ owner = null, kind, to, cc = [], subject, text,
     body: JSON.stringify({
       from: s.emailFrom, to: toList, ...(ccList.length ? { cc: ccList } : {}),
       ...(replyTo || s.replyTo ? { reply_to: replyTo || s.replyTo } : {}),
-      subject: String(subject).slice(0, 250), text: String(text || ''), html: htmlOf(text || '', s.productName),
+      subject: String(subject).slice(0, 250), text: String(text || '') + (table?.length ? '\n\n'+trackerText(table) : ''), html: htmlOf(text || '', s.productName, table),
       ...(attachments.length ? { attachments: attachments.slice(0, 10).map((a) => ({ filename: String(a.filename), content: String(a.content), ...(a.contentType ? { content_type: a.contentType } : {}) })) } : {}),
     }),
   })

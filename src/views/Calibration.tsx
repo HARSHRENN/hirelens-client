@@ -8,7 +8,7 @@ import { put } from '../lib/store'
 import type { Job } from '../lib/types'
 import { debounce, fmtDate } from '../lib/util'
 
-const LANGS = ['English', 'Hindi', 'Marathi', 'Gujarati', 'Tamil', 'Telugu', 'Kannada', 'Bengali', 'Malayalam', 'Punjabi']
+const LANGS = ['English', 'Hindi', 'Marathi', 'Gujarati', 'Tamil', 'Telugu', 'Kannada', 'Bengali', 'Malayalam', 'Punjabi', 'Odia', 'Assamese', 'Urdu', 'Sanskrit', 'Konkani', 'German', 'French', 'Mandarin Chinese', 'Spanish', 'Arabic', 'Portuguese', 'Bahasa Indonesia', 'Russian', 'Italian', 'Polish', 'Romanian', 'Dutch']
 
 /* The calibration call with the hiring manager: take notes (or live captions where the
  * browser allows the mic), record the call, summarise into requirements, translate. */
@@ -122,7 +122,7 @@ Only change a requirement field when the notes clearly say so; otherwise repeat 
           <div className="row"><Button size="sm" variant="ink" busy={busy === 'apply'} onClick={applySuggest}>Apply to job</Button><Button size="sm" variant="ghost" onClick={() => setSuggest(null)}>Keep current</Button></div>
         </div>}
         <div className="row" style={{ marginTop: 'var(--space-md)' }}>
-          <div style={{ width: 160 }}><Select aria-label="Translate to" value={lang} onChange={(e) => setLang(e.target.value)} options={LANGS.map((l) => ({ value: l, label: l }))} /></div>
+          <div style={{ width: 240 }}><Select aria-label="Translate to" value={lang} onChange={(e) => setLang(e.target.value)} options={LANGS.map((l) => ({ value: l, label: l }))} /></div>
           <Button busy={busy === 'tr'} onClick={translate}><Languages size={14} />Translate</Button>
         </div>
         {job.calibration?.translation && <div className="preview-msg stock" lang={job.calibration.translation.lang === 'English' ? 'en' : undefined}><span className="xs muted">{job.calibration.translation.lang}</span>{'\n'}{job.calibration.translation.text}</div>}

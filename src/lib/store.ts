@@ -1,7 +1,7 @@
 import { useSyncExternalStore } from 'react'
-import { supaSync } from './cloud'
+import { api, supaSync } from './cloud'
 import { cap, MODE } from './runtime'
-import { DEFAULT_LEVELS, getStages, setStageLevels, type AppConfig, type Candidate, type Job, type Panelist, type Template } from './types'
+import { DEFAULT_LEVELS, getStages, setStageLevels, type AppConfig, type Candidate, type Job, type Panelist, type PanelFeedback, type Template } from './types'
 import { lsGet, lsSet } from './util'
 
 /* One in-memory store, persisted through the backend that fits where the app runs:
@@ -9,6 +9,11 @@ import { lsGet, lsSet } from './util'
  *  - demo: this browser's localStorage, sample data only
  *  - artifact: the claude.ai `db` capability
  * No API keys live here: the platform's keys stay on the server. */
+
+export interface JobAssignment { job_id: string; recruiter_id: string; assigned_at: string; version: number }
+export interface RecruiterOption { id: string; full_name: string; email: string; status: string }
+const docOwners = new Map<string, string>()
+export const jobOwner = (id: string) => docOwners.get(`jobs/${id}`)
 
 type Coll = 'jobs' | 'candidates' | 'templates' | 'panelists'
 const COLLS: Coll[] = ['jobs', 'candidates', 'templates', 'panelists']
@@ -21,6 +26,11 @@ interface State {
   templates: Record<string, Template>
   panelists: Record<string, Panelist>
   config: AppConfig
+  panelFeedback: PanelFeedback[]
+  panelFeedbackEnabled: boolean
+  assignmentsEnabled: boolean
+  assignments: Record<string, JobAssignment>
+  recruiters: RecruiterOption[]
 }
 
 export const DEFAULT_CONFIG: AppConfig = {
@@ -49,6 +59,7 @@ const withDefaults = (c: Partial<AppConfig> | undefined): AppConfig => ({
 })
 
 let state: State = {
+  panelFeedback: [], panelFeedbackEnabled: false, assignmentsEnabled: false, assignments: {}, recruiters: [],
   ready: false, backend: 'loading', offline: false,
   jobs: {}, candidates: {}, templates: {}, panelists: {},
   config: DEFAULT_CONFIG,
@@ -67,6 +78,8 @@ export function useStore<T>(sel: (s: State) => T): T {
 export const getState = () => state
 
 let db: any = null // artifact db capability
+let loadVersion = 0
+let writesPending = 0
 let owner = '' // cloud: the signed-in user's id
 
 function saveLocal() {
@@ -88,17 +101,40 @@ export async function initStore(opts: { userId?: string } = {}) {
   if (mode === 'cloud') {
     const sb = supaSync()
     if (!sb || !opts.userId) throw new Error('Not signed in')
+    if (writesPending) return
+    const version = ++loadVersion
+    if (owner && owner !== opts.userId) setState({ ready: false, jobs: {}, candidates: {}, templates: {}, panelists: {}, panelFeedback: [], panelFeedbackEnabled: false, assignments: {}, recruiters: [] })
     owner = opts.userId
     setState({ backend: 'cloud' })
     const next: Record<string, Record<string, any>> = { jobs: {}, candidates: {}, templates: {}, panelists: {} }
     let config: any = null
+    const owners = new Map<string, string>()
     for (let from = 0; ; from += 1000) {
-      const { data, error } = await sb.from('docs').select('coll, id, data').eq('owner', owner).range(from, from + 999)
+      const { data, error } = await sb.from('docs').select('owner, coll, id, data').order('owner').order('coll').order('id').range(from, from + 999)
       if (error) { toastError(error); setState({ ready: true, offline: true }); return }
-      for (const r of data) { if (r.coll === 'config') { if (r.id === 'app') config = r.data } else next[r.coll]![r.id] = { ...r.data, id: r.id } }
+      for (const r of data) { owners.set(`${r.coll}/${r.id}`, r.owner); if (r.coll === 'config') { if (r.id === 'app') config = r.data } else next[r.coll]![r.id] = { ...r.data, id: r.id } }
       if (data.length < 1000) break
     }
-    setState({ ...next, config: withDefaults(config), ready: true, offline: false } as any)
+    const assignmentData = await api<{ enabled: boolean; assignments: JobAssignment[]; recruiters: RecruiterOption[] }>('app', 'job-assignments')
+    if (version !== loadVersion || writesPending) return
+    for (const coll of COLLS) for (const [id, value] of Object.entries(next[coll]!)) {
+      if (JSON.stringify(value) === JSON.stringify(state[coll][id])) next[coll]![id] = state[coll][id]
+    }
+    const feedback: PanelFeedback[] = []
+    let feedbackEnabled = true
+    for (let from = 0; ; from += 1000) {
+      const fb = await sb.from('panel_feedback').select('candidate_id,interview_id,panelist_id,panelist_name,expires_at,requested_at,revoked_at,submitted_at,rating,recommendation,comments').order('candidate_id').order('interview_id').order('panelist_id').range(from, from + 999)
+      if (fb.error) {
+        if (!['PGRST205', '42P01'].includes(fb.error.code)) throw fb.error
+        feedbackEnabled = false; break
+      }
+      feedback.push(...fb.data)
+      if (fb.data.length < 1000) break
+    }
+    if (version !== loadVersion || writesPending) return
+    const nextConfig = withDefaults(config)
+    docOwners.clear(); owners.forEach((value, key) => docOwners.set(key, value))
+    setState({ panelFeedback: feedback, panelFeedbackEnabled: feedbackEnabled, assignmentsEnabled: assignmentData.enabled, assignments: Object.fromEntries(assignmentData.assignments.map(a => [a.job_id, a])), recruiters: assignmentData.recruiters, ...next, config: JSON.stringify(nextConfig) === JSON.stringify(state.config) ? state.config : nextConfig, ready: true, offline: false } as any)
     return
   }
   if (mode === 'artifact') {
@@ -124,13 +160,15 @@ export async function initStore(opts: { userId?: string } = {}) {
   // demo (and an artifact without a db): this browser only
   let data: any = {}
   try { data = JSON.parse(localStorage.getItem(LS_DEMO_DATA) || '{}') } catch { /* ignore */ }
-  setState({ backend: 'local', ready: true, jobs: data.jobs || {}, candidates: data.candidates || {}, templates: data.templates || {}, panelists: data.panelists || {}, config: withDefaults(lsGet(LS_DEMO_CONFIG, DEFAULT_CONFIG)) })
+  setState({ panelFeedback: [], panelFeedbackEnabled: true, assignmentsEnabled: true, assignments: {}, recruiters: [], backend: 'local', ready: true, jobs: data.jobs || {}, candidates: data.candidates || {}, templates: data.templates || {}, panelists: data.panelists || {}, config: withDefaults(lsGet(LS_DEMO_CONFIG, DEFAULT_CONFIG)) })
 }
 
 const writeQueue = new Map<string, Promise<void>>()
 function queued(path: string, fn: () => Promise<void>) {
   const prev = writeQueue.get(path) || Promise.resolve()
-  const next = prev.then(fn).catch((e) => { console.warn('save failed', path, e); toastError(e) })
+  writesPending++
+  loadVersion++
+  const next = prev.catch(() => {}).then(fn).catch((e) => { console.warn('save failed', path, e); toastError(e); throw e }).finally(() => { writesPending-- })
   writeQueue.set(path, next)
   return next
 }
@@ -138,22 +176,26 @@ const clean = (o: unknown) => JSON.parse(JSON.stringify(o))
 
 export function put<C extends Coll>(c: C, obj: State[C][string]) {
   const o = { ...(obj as any), updatedAt: Date.now() }
-  setState({ [c]: { ...state[c], [o.id]: o } } as any)
   if (state.backend === 'cloud') return queued(`${c}/${o.id}`, async () => {
-    const { error } = await supaSync()!.from('docs').upsert({ owner, coll: c, id: o.id, data: clean(o), updated_at: new Date().toISOString() })
+    const recordOwner = docOwners.get(`${c}/${o.id}`) || (c === 'candidates' ? jobOwner(o.jobId) : undefined) || owner
+    const { error } = await supaSync()!.from('docs').upsert({ owner: recordOwner, coll: c, id: o.id, data: clean(o), updated_at: new Date().toISOString() })
     if (error) throw error
+    docOwners.set(`${c}/${o.id}`, recordOwner)
+    setState({ [c]: { ...state[c], [o.id]: o } } as any)
   })
+  setState({ [c]: { ...state[c], [o.id]: o } } as any)
   if (state.backend === 'db') return queued(`${c}/${o.id}`, () => db.collection(c).doc(o.id).set(clean(o)))
   saveLocal(); return Promise.resolve()
 }
 
 export function remove(c: Coll, id: string) {
   const next = { ...state[c] }; delete next[id]
-  setState({ [c]: next } as any)
   if (state.backend === 'cloud') return queued(`${c}/${id}`, async () => {
-    const { error } = await supaSync()!.from('docs').delete().eq('owner', owner).eq('coll', c).eq('id', id)
+    const { error } = await supaSync()!.from('docs').delete().eq('owner', docOwners.get(`${c}/${id}`) || owner).eq('coll', c).eq('id', id)
     if (error) throw error
+    setState({ [c]: next } as any)
   })
+  setState({ [c]: next } as any)
   if (state.backend === 'db') return queued(`${c}/${id}`, () => db.collection(c).doc(id).delete())
   saveLocal(); return Promise.resolve()
 }

@@ -1,9 +1,13 @@
+import { RECRUITER_FEEDBACK_SQL } from './recruiterFeedbackSchema.js'
 // The whole database, idempotent: safe to run on every deploy (scripts/migrate.mjs)
 // and from Admin → Platform → "Run database setup".
 //
 // Tenancy: every row a recruiter owns carries owner = auth.uid(); row-level security
 // lets a signed-in, active user see only their own rows. Platform settings, usage logs
 // and the geocode cache have no policies at all, so only the server (service role) reads them.
+import { PANEL_FEEDBACK_SQL } from './panelFeedbackSchema.js'
+import { JOB_DATES_SQL } from './jobDatesSchema.js'
+import { ASSIGNMENTS_SQL } from './assignmentsSchema.js'
 export const SCHEMA_SQL = /* sql */ `
 
 create table if not exists public.profiles (
@@ -157,4 +161,4 @@ grant select on public.admin_user_stats to service_role;
 do $$ begin
   revoke all on public.admin_user_stats from anon, authenticated;
 exception when undefined_object then null; end $$;
-`
+` + ASSIGNMENTS_SQL + JOB_DATES_SQL + PANEL_FEEDBACK_SQL + RECRUITER_FEEDBACK_SQL

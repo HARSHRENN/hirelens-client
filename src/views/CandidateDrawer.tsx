@@ -1,4 +1,4 @@
-import { Copy, Mail, MessageCircle, Pause, Send, Star, Trash2, X } from 'lucide-react'
+import { Copy, Sparkles, Mail, MessageCircle, Pause, Send, Star, Trash2, X } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 import { Button, Dialog, Drawer, Empty, Field, Groove, Input, LinkButton, MatchCard, Select, StageTag, Tabs, Textarea, useToast } from '../components/ui'
 import { geocode, km, mapsLink } from '../lib/geo'
@@ -7,7 +7,10 @@ import { companiesCount, rescore, selfMatch } from '../lib/match'
 import { getState, put, remove, useStages, useStore } from '../lib/store'
 import { stageLabel, type Candidate, type Remark, type Stage } from '../lib/types'
 import { EmploymentEditor, EmploymentTimeline, PanelInterviews, ResumeFiles, SelfRating } from './CandidateExtras'
-import { ago, fill, fmtDays, fmtKm, fmtLpa, fmtYrs, uid } from '../lib/util'
+import { ago, fmtDays, fmtKm, fmtLpa, fmtYrs, uid } from '../lib/util'
+
+import { complete } from '../lib/ai'
+import { editableTemplate, interpolate, renderTemplate, validMessageLink } from '../../shared/communication.js'
 
 type Tab = 'overview' | 'contact' | 'interview' | 'self' | 'notes' | 'resume'
 
@@ -16,6 +19,8 @@ const remark = (text: string, kind: Remark['kind']): Remark => ({ id: uid('r'), 
 export function CandidateDrawer({ id, onClose }: { id: string; onClose: () => void }) {
   const c = useStore((s) => s.candidates[id])
   const job = useStore((s) => (c ? s.jobs[c.jobId] : undefined))
+  const panelFeedback=useStore(s=>s.panelFeedback)
+  const feedbackCount=panelFeedback.filter(f=>f.candidate_id===id && f.submitted_at).length + (c?.interviews || []).reduce((n,iv)=>n+(iv.demoPanelFeedback || []).filter(f=>f.submitted_at).length,0)
   const [tab, setTab] = useState<Tab>('overview')
   const [confirm, setConfirm] = useState(false)
   const toast = useToast()
@@ -34,7 +39,7 @@ export function CandidateDrawer({ id, onClose }: { id: string; onClose: () => vo
       <Button size="sm" variant={c.stage === 'rejected' ? 'ink' : 'card'} aria-pressed={c.stage === 'rejected'} onClick={() => c.stage === 'rejected' ? setStage('contacted') : save({ stage: 'rejected', shortlisted: false }, remark('Moved to Rejected', 'stage'))}><X size={14} />Reject</Button>
       <div style={{ width: 160 }}><Select aria-label="Stage or level" value={c.stage} onChange={(e) => setStage(e.target.value as Stage)} options={STAGES.map((s) => ({ value: s.id, label: s.label }))} /></div>
     </>}>
-    <Tabs value={tab} onChange={setTab} tabs={[{ id: 'overview', label: 'Overview' }, { id: 'contact', label: 'Message' }, { id: 'interview', label: `Interviews (${(c.interviews || []).length})` }, { id: 'self', label: `Self rating${selfMatch(c, job) != null ? ` ${selfMatch(c, job)}%` : ''}` }, { id: 'notes', label: `Remarks (${c.remarks.length})` }, { id: 'resume', label: 'Resume' }]} />
+    <Tabs value={tab} onChange={setTab} tabs={[{ id: 'overview', label: 'Overview' }, { id: 'contact', label: 'Message' }, { id: 'interview', label: `Interviews & feedback (${(c.interviews || []).length})${feedbackCount ? ` · ${feedbackCount} received` : ''}` }, { id: 'self', label: `Self rating${selfMatch(c, job) != null ? ` ${selfMatch(c, job)}%` : ''}` }, { id: 'notes', label: `Remarks (${c.remarks.length})` }, { id: 'resume', label: 'Resume' }]} />
 
     {tab === 'overview' && <Overview c={c} />}
     {tab === 'contact' && <Contact c={c} onSent={(kind, text) => save({ stage: c.stage === 'new' ? 'contacted' : c.stage }, remark(text, kind))} />}
@@ -143,11 +148,15 @@ function Contact({ c, onSent }: { c: Candidate; onSent: (kind: 'whatsapp' | 'ema
   const vars = useMemo(() => candidateVars(c, job, cfg), [c, job, cfg])
   const [body, setBody] = useState('')
   const [subject, setSubject] = useState('')
+  const [link, setLink] = useState('')
+  const [drafting, setDrafting] = useState(false)
   const [busy, setBusy] = useState(false)
   const toast = useToast()
-  useEffect(() => { setBody(t ? fill(t.body, vars) : ''); setSubject(t?.subject ? fill(t.subject, vars) : '') }, [t?.id, channel, vars]) // eslint-disable-line
+  useEffect(() => { const e=editableTemplate(t || {}), r=renderTemplate(t,vars);setBody(interpolate(e.body,vars));setSubject(r.subject);setLink(r.link) }, [t?.id, t?.body, t?.subject, t?.link, channel, vars]) // eslint-disable-line
   useEffect(() => { if (!list.find((x) => x.id === tid)) setTid(list[0]?.id || '') }, [channel, list.length]) // eslint-disable-line
 
+  const outgoing = [body.trim(),link.trim()].filter(Boolean).join('\n\n')
+  const invalidLink = !validMessageLink(link)
   const missing = channel === 'whatsapp' ? !c.phone : !c.email
   const unfilled = (body + subject).match(/\{\{\w+\}\}/g)
   const apiReady = canServerSend() && channel === 'email'
@@ -155,7 +164,7 @@ function Contact({ c, onSent }: { c: Candidate; onSent: (kind: 'whatsapp' | 'ema
   async function apiSend() {
     setBusy(true)
     try {
-      await sendEmail(c.email, subject, body)
+      await sendEmail(c.email, subject, outgoing)
       onSent('email', `Email sent: ${t?.name || 'custom message'}`); toast(`Email sent to ${c.email}`)
     } catch (e: any) { toast(e.message, { kind: 'error' }) } finally { setBusy(false) }
   }
@@ -170,12 +179,16 @@ function Contact({ c, onSent }: { c: Candidate; onSent: (kind: 'whatsapp' | 'ema
     <Field label="Message" hint={unfilled ? `Still has ${[...new Set(unfilled)].join(', ')}. Fill those in or schedule the interview first.` : `To ${channel === 'whatsapp' ? c.phone : c.email}`}>
       <Textarea rows={9} value={body} onChange={(e) => setBody(e.target.value)} />
     </Field>
+    <Field label="Optional message link" hint="Leave empty to send without a link."><Input type="url" value={link} onChange={e=>setLink(e.target.value)} /></Field>
+    {invalidLink && <p className="small" role="alert">Use a full http:// or https:// link, or leave it empty.</p>}
+    <div><Button size="sm" busy={drafting} disabled={!body.trim()} onClick={async()=>{setDrafting(true);try{const text=await complete(`Rephrase this recruiting message. Keep every fact; do not invent names, dates, salary or links. Return only the message.\n\n${body}`);setBody(text.trim())}catch(e){toast((e as Error).message,{kind:'error'})}finally{setDrafting(false)}}}><Sparkles size={14}/>Rephrase with AI</Button></div>
+    <div className="stock preview-msg" aria-label="Outgoing message preview">{channel==='email' && <b>{subject}{'\n\n'}</b>}{outgoing}</div>
     <div className="row">
       {channel === 'whatsapp'
-        ? <LinkButton variant="ink" href={missing ? undefined : waLink(c.phone, body)} aria-disabled={missing} onClick={() => !missing && onSent('whatsapp', `WhatsApp opened: ${t?.name || 'custom message'}`)}><MessageCircle size={16} />Open in WhatsApp</LinkButton>
-        : <LinkButton variant="ink" href={missing ? undefined : gmailLink(c.email, subject, body)} aria-disabled={missing} onClick={() => !missing && onSent('email', `Email drafted in Gmail: ${t?.name || 'custom message'}`)}><Mail size={16} />Open in Gmail</LinkButton>}
-      {apiReady && <Button busy={busy} disabled={missing} onClick={apiSend}><Send size={14} />Send now</Button>}
-      <Button variant="ghost" onClick={async () => toast((await copy(channel === 'email' ? `Subject: ${subject}\n\n${body}` : body)) ? 'Message copied' : 'Copy blocked here')}><Copy size={14} />Copy</Button>
+        ? <LinkButton variant="ink" href={missing || invalidLink ? undefined : waLink(c.phone, outgoing)} aria-disabled={missing} onClick={() => !missing && onSent('whatsapp', `WhatsApp opened: ${t?.name || 'custom message'}`)}><MessageCircle size={16} />Open in WhatsApp</LinkButton>
+        : <LinkButton variant="ink" href={missing || invalidLink ? undefined : gmailLink(c.email, subject, outgoing)} aria-disabled={missing} onClick={() => !missing && onSent('email', `Email drafted in Gmail: ${t?.name || 'custom message'}`)}><Mail size={16} />Open in Gmail</LinkButton>}
+      {apiReady && <Button busy={busy} disabled={missing || invalidLink || !body.trim() || !subject.trim() || drafting} onClick={apiSend}><Send size={14} />Send now</Button>}
+      <Button variant="ghost" onClick={async () => toast((await copy(channel === 'email' ? `Subject: ${subject}\n\n${outgoing}` : outgoing)) ? 'Message copied' : 'Copy blocked here')}><Copy size={14} />Copy</Button>
     </div>
     <p className="xs muted">
       {channel === 'whatsapp' ? 'Opens WhatsApp with the message ready; you press send. ' : 'Opens a Gmail draft; you press send. '}

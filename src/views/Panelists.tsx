@@ -15,13 +15,14 @@ export function Panelists() {
   const ready = useStore((s) => s.ready)
   const pmap = useStore((s) => s.panelists)
   const cmap = useStore((s) => s.candidates)
+  const responses = useStore((s) => s.panelFeedback)
   const [edit, setEdit] = useState<Panelist | 'new' | null>(null)
   const [open, setOpen] = useState<string | null>(null)
   const [period, setPeriod] = useState<Period>('all')
   const { openCandidate } = useUi()
 
   const from = period === 'all' ? 0 : Date.now() - (period === 'week' ? 7 : 30) * 864e5
-  const stats = useMemo(() => panelStats(Object.values(cmap), from), [cmap, from])
+  const stats = useMemo(() => panelStats(Object.values(cmap), from, Infinity, responses), [cmap, from, responses])
   const list = Object.values(pmap).sort((a, b) => Number(b.active) - Number(a.active) || (stats[b.id]?.total || 0) - (stats[a.id]?.total || 0))
   const totals = list.reduce((a, p) => { const s = stats[p.id]; if (s) { a.t += s.total; a.u += s.upcoming; a.s += s.select } return a }, { t: 0, u: 0, s: 0 })
 
@@ -53,7 +54,7 @@ export function Panelists() {
               {p.email && <a className="xs icon-link" href={`mailto:${p.email}`} onClick={(e) => e.stopPropagation()}><Mail size={12} aria-hidden /> {p.email}</a>}
               {p.phone && <a className="xs icon-link" href={`tel:${p.phone.replace(/\s/g, '')}`} onClick={(e) => e.stopPropagation()}><Phone size={12} aria-hidden /> {p.phone}</a>}
             </div></td>
-            <td data-label="Availability">{p.calendly ? <a className="xs icon-link" href={p.calendly} target="_blank" rel="noreferrer" onClick={(e) => e.stopPropagation()}><CalendarClock size={12} aria-hidden /> Calendly</a> : <span className="xs muted">No link</span>}</td>
+            <td data-label="Availability"><div className="stack" style={{gap:4}}>{p.availability && <span className="small">{p.availability}</span>}{p.availableFrom && p.availableTo && <span className="xs">{new Date(p.availableFrom).toLocaleString('en-IN')} – {new Date(p.availableTo).toLocaleString('en-IN')}</span>}{p.calendly ? <a className="xs icon-link" href={p.calendly} target="_blank" rel="noreferrer" onClick={(e) => e.stopPropagation()}><CalendarClock size={12} aria-hidden /> Calendly</a> : !p.availability && !p.availableFrom ? <span className="xs muted">Not provided</span> : null}</div></td>
             <td className="num" data-label="Interviews"><b>{s?.total || 0}</b></td>
             <td className="num" data-label="Upcoming">{s?.upcoming || 0}</td>
             <td className="num" data-label="Selects">{s?.select || 0}</td>
@@ -70,15 +71,15 @@ export function Panelists() {
       <div className="section-head"><h2 id="h-fb">Feedback from {pmap[open]!.name}</h2><p>Newest first</p></div>
       {stats[open]?.feedback.length ? <ul className="feed">{stats[open]!.feedback.map((f, i) => (
         <li key={i}><span><button className="linkbtn" onClick={() => openCandidate(f.candidateId)}>{f.candidate}</button> <span className="kind">{stageLabel(f.round)}: <b data-result={f.result} className="result-tag">{RESULT[f.result]}</b>{f.rating ? ` · ${f.rating}/5` : ''}{f.text ? ` · ${f.text}` : ''}</span></span><time>{fmtDate(f.at)}</time></li>))}</ul>
-        : <p className="small muted">No feedback recorded yet. Enter it from a candidate's Interviews tab after the call.</p>}
+        : <p className="small muted">No feedback recorded yet. Request panelist feedback from a candidate’s Interviews tab.</p>}
     </section>}
-    <p className="xs muted">Availability opens each panelist's own Calendly booking page. Calendly's API is not connected, so bookings made there are not pulled in automatically.</p>
+    <p className="xs muted">Use availability remarks or a time range to coordinate directly. Email contact remains available; an optional scheduling link opens separately and does not sync bookings.</p>
     {edit && <PanelistForm p={edit === 'new' ? null : edit} onClose={() => setEdit(null)} />}
   </>
 }
 
 function PanelistForm({ p, onClose }: { p: Panelist | null; onClose: () => void }) {
-  const [f, setF] = useState({ name: p?.name || '', email: p?.email || '', phone: p?.phone || '', calendly: p?.calendly || '', expertise: p?.expertise || '', active: p?.active ?? true })
+  const [f, setF] = useState({ name: p?.name || '', email: p?.email || '', phone: p?.phone || '', calendly: p?.calendly || '', availability:p?.availability || '',availableFrom:p?.availableFrom || '',availableTo:p?.availableTo || '',expertise: p?.expertise || '', active: p?.active ?? true })
   const [err, setErr] = useState('')
   const [confirm, setConfirm] = useState(false)
   const toast = useToast()
@@ -86,6 +87,7 @@ function PanelistForm({ p, onClose }: { p: Panelist | null; onClose: () => void 
   async function save() {
     if (!f.name.trim()) return setErr('Add the panelist\'s name')
     if (f.calendly && !/^https?:\/\//.test(f.calendly.trim())) return setErr('The Calendly link should start with https://')
+    if (!!f.availableFrom !== !!f.availableTo || (f.availableFrom && new Date(f.availableTo).getTime()<=new Date(f.availableFrom).getTime())) return setErr('Choose both availability dates, with the end after the start.')
     const now = Date.now()
     await put('panelists', { id: p?.id || uid('p'), createdAt: p?.createdAt || now, updatedAt: now, ...f, name: f.name.trim(), email: f.email.trim(), phone: f.phone.trim(), calendly: f.calendly.trim(), expertise: f.expertise.trim() })
     toast(p ? 'Panelist updated' : 'Panelist added'); onClose()
@@ -99,7 +101,11 @@ function PanelistForm({ p, onClose }: { p: Panelist | null; onClose: () => void 
       <Field label="Expertise" hint="What they interview for, e.g. Java, system design"><Input value={f.expertise} onChange={(e) => set({ expertise: e.target.value })} /></Field>
       <Field label="Email"><Input type="email" autoComplete="off" value={f.email} onChange={(e) => set({ email: e.target.value })} /></Field>
       <Field label="Contact number"><Input type="tel" inputMode="tel" autoComplete="off" value={f.phone} onChange={(e) => set({ phone: e.target.value })} /></Field>
-      <Field label="Availability (Calendly link)" hint="Their booking page. Opened as a link; nothing is synced." error={err && f.calendly ? err : undefined} className="span-2"><Input type="url" inputMode="url" value={f.calendly} placeholder="https://calendly.com/name/45min" onChange={(e) => set({ calendly: e.target.value })} /></Field>
+      <Field label="Availability remarks" hint="For example, Monday, 2–3 PM. No scheduling account needed." className="span-2"><Input value={f.availability} onChange={e=>set({availability:e.target.value})}/></Field>
+      <Field label="Available from"><Input type="datetime-local" value={f.availableFrom} onChange={e=>set({availableFrom:e.target.value})}/></Field>
+      <Field label="Available until"><Input type="datetime-local" value={f.availableTo} min={f.availableFrom} onChange={e=>set({availableTo:e.target.value})}/></Field>
+      {err && <p role="alert" className="small span-2">{err}</p>}
+      <Field label="Scheduling link (optional)" hint="Their booking page. Opened as a link; nothing is synced." error={err && f.calendly ? err : undefined} className="span-2"><Input type="url" inputMode="url" value={f.calendly} placeholder="https://calendly.com/name/45min" onChange={(e) => set({ calendly: e.target.value })} /></Field>
       <label className="row small span-2"><input type="checkbox" checked={f.active} onChange={(e) => set({ active: e.target.checked })} /> Active, offered when scheduling rounds</label>
       {confirm && <p className="small span-2" style={{ color: 'var(--color-error)' }}>Past interviews keep their record but will show “Removed panelist”. Mark inactive instead to keep the name.</p>}
     </div>

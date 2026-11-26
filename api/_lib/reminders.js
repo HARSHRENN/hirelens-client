@@ -1,4 +1,5 @@
-import { fill, sendMail } from './mail.js'
+import { sendMail } from './mail.js'
+import { renderTemplate } from '../../shared/communication.js'
 import { emailReady, getSettings } from './settings.js'
 import { db, logUsage, ownerDocs } from './supa.js'
 
@@ -51,7 +52,7 @@ export async function sendReminders() {
           await sendMail({
             owner: p.id, kind: 'email:reminder', to: c.email,
             cc: iv.panelistIds.map((id) => panel[id]?.email).filter(Boolean),
-            subject: fill(tpl.subject || DEFAULT_REMINDER.subject, vars), text: fill(tpl.body, vars), replyTo: p.email,
+            subject: renderTemplate({...tpl,subject:tpl.subject || DEFAULT_REMINDER.subject},vars).subject, text: renderTemplate(tpl,vars).body, replyTo: p.email,
           })
           iv.reminderSentAt = Date.now(); changed = true; sent++
         } catch (e) { failed++; await logUsage(p.id, 'reminder:failed', `${c.name}: ${e.message}`, false) }

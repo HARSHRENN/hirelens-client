@@ -31,3 +31,7 @@ deploy
 .vercel
 .env.*
 !.env.example
+
+# Generated documents and local working files may contain client login details.
+/output/
+/tmp/

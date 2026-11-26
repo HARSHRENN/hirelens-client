@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react'
 import { TopBar } from '../components/TopBar'
 import { Empty, ScoreCell, Select, Skeleton } from '../components/ui'
+import { screeningRemark } from '../lib/screening'
 import { put, useStages, useStore } from '../lib/store'
 import { stageLabel, type Candidate, type Stage } from '../lib/types'
 import { useUi } from '../lib/uictx'
@@ -35,6 +36,7 @@ export function Pipeline() {
             onDragOver={(e) => { e.preventDefault(); setOver(col.id) }} onDragLeave={() => setOver(null)}
             onDrop={(e) => { e.preventDefault(); setOver(null); const c = drag && cands[drag]; if (c) move(c, col.id); setDrag(null) }}>
             <h3>{col.label}<span className="fig">{col.items.length}</span></h3>
+            {col.kind === 'level' && <p className="xs muted">{col.items.filter(c => screeningRemark(c, col.id) === 'Shortlisted').length} shortlisted · {col.items.filter(c => screeningRemark(c, col.id) === 'Rejected').length} rejected</p>}
             {col.items.map((c) => (
               <article key={c.id} className="kcard stock" draggable data-shortlisted={c.shortlisted}
                 onDragStart={(e) => { setDrag(c.id); e.dataTransfer.effectAllowed = 'move' }} onDragEnd={() => setDrag(null)}
@@ -46,7 +48,7 @@ export function Pipeline() {
                   if (e.key === 'ArrowLeft' && i > 0) move(c, STAGES[i - 1]!.id)
                 }}
                 aria-label={`${c.name}, ${c.match?.score ?? 'unscored'} percent. Arrow keys move stage.`}>
-                <div className="row" style={{ justifyContent: 'space-between' }}><b>{c.name}</b><ScoreCell m={c.match} /></div>
+                <div className="row" style={{ justifyContent: 'space-between' }}><span><b>{c.name}</b>{col.kind === 'level' && <span className="stage-tag" style={{ marginLeft: 6 }} data-stage={screeningRemark(c, col.id) === 'Rejected' ? 'rejected' : screeningRemark(c, col.id) === 'Shortlisted' ? 'selected' : 'hold'}>{screeningRemark(c, col.id)}</span>}</span><ScoreCell m={c.match} /></div>
                 <span className="xs muted">{jobs[c.jobId]?.title}</span>
                 <span className="xs muted fig">{fmtLpa(c.expectedCtcLpa)}, {fmtDays(c.noticeDays)}</span>
               </article>

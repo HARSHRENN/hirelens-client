@@ -1,3 +1,4 @@
+import { JobEmail } from './JobEmail'
 import { Copy, Download, Sparkles } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { Button, ErrorBox, Field, Groove, Input, LinkButton, Textarea, useToast } from '../components/ui'
@@ -36,6 +37,7 @@ export function Share({ job }: { job: Job }) {
   }
 
   return <section className="section">
+    <JobEmail key={`${job.id}/${job.updatedAt}`} job={job}/><hr style={{margin:'24px 0',border:'0',borderTop:'1px solid var(--color-rule)'}}/>
     <div className="grid-2" style={{ alignItems: 'start' }}>
       <div className="stack">
         <div className="row" style={{ justifyContent: 'space-between' }}>

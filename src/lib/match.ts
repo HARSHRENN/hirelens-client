@@ -30,20 +30,25 @@ export function rulesExtract(text: string, job?: Job): Extracted {
   const name = lines.find((l) => /^[A-Za-z][A-Za-z .'-]{2,40}$/.test(l) && l.split(' ').length <= 4 && !/resume|curriculum|vitae|profile/i.test(l)) || ''
   const lc = t.toLowerCase()
   const yrs = [...lc.matchAll(/(\d{1,2}(?:\.\d)?)\+?\s*(?:years|yrs|year)/g)].map((m) => num(m[1])!).filter((n) => n < 45)
-  const totalExp = yrs.length ? Math.max(...yrs) : null
+  const labelledExp=(label:string)=>num(lc.match(new RegExp(label+'\\s*(?:experience|exp)?\\s*[:–-]?\\s*(\\d{1,2}(?:\\.\\d+)?)\\s*(?:years|yrs|year)'))?.[1])
+  const totalExp = labelledExp('total') ?? (yrs.length ? Math.max(...yrs) : null)
+  const relevantExp = labelledExp('relevant') ?? totalExp
   const lpa = (re: RegExp) => { const m = lc.match(re); if (!m) return null; let v = num(m[1])!; if (/cr/.test(m[0])) v *= 100; if (v > 1000) v = v / 100000; return v }
   const currentCtcLpa = lpa(/(?:current|present)\s*(?:ctc|salary|package)[^\d]{0,12}([\d.,]+)\s*(?:lpa|lakhs?|l\b|cr)?/)
   const expectedCtcLpa = lpa(/(?:expected|expectation)\s*(?:ctc|salary|package)?[^\d]{0,12}([\d.,]+)\s*(?:lpa|lakhs?|l\b|cr)?/)
   let noticeDays: number | null = null
-  if (/notice[^.\n]{0,25}(immediate|serving|\b0 days)/.test(lc) || /immediate joiner/.test(lc)) noticeDays = 0
+  if (/notice[^.\n]{0,25}(immediate|\b0 days)/.test(lc) || /immediate joiner/.test(lc)) noticeDays = 0
   else { const m = lc.match(/notice\s*(?:period)?[^\d]{0,12}(\d{1,3})\s*(days?|months?)/); if (m) noticeDays = num(m[1])! * (m[2]!.startsWith('month') ? 30 : 1) }
   const loc = t.match(/(?:location|current location|based in|address)\s*[:\-–]\s*([^\n|,]{2,40})/i)?.[1]?.trim() || ''
   const vocab = [...new Set([...COMMON, ...(job ? [...job.mustSkills, ...job.niceSkills].map((s) => s.toLowerCase()) : [])])]
-  const skills = vocab.filter((s) => new RegExp(`(^|[^a-z0-9])${s.replace(/[.+#/]/g, (c) => '\\' + c)}([^a-z0-9]|$)`, 'i').test(lc))
+  const skills = vocab.filter((s) => new RegExp(`(^|[^a-z0-9])${s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}([^a-z0-9]|$)`, 'i').test(lc))
   const employment = rulesEmployment(lines)
+  const labelled=(pattern:string)=>t.match(new RegExp('(?:'+pattern+')\\s*[:–-]\\s*([^\\n]{2,100})','i'))?.[1]?.trim() || ''
+  const currentCompany=labelled('current company|current employer|present company') || employment[0]?.company || ''
+  const currentRole=labelled('current role|current designation|designation|job title') || employment[0]?.role || (/engineer|developer|analyst|manager|designer|consultant/i.test(lines[1] || '') ? lines[1]! : '')
   return {
-    employment, name, email, phone, currentRole: employment[0]?.role || '', currentCompany: employment[0]?.company || '', totalExp, relevantExp: totalExp,
-    currentCtcLpa, expectedCtcLpa, noticeDays, currentLocation: loc, skills, education: '',
+    employment, name, email, phone, currentRole, currentCompany, totalExp, relevantExp,
+    currentCtcLpa, expectedCtcLpa, noticeDays, currentLocation: loc, skills, education: labelled('education|qualification'),
     summary: lines.slice(0, 3).join(' ').slice(0, 220),
   }
 }

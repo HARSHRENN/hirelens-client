@@ -10,6 +10,10 @@
   },
   "rewrites": [
     {
+      "source": "/feedback",
+      "destination": "/app/index.html"
+    },
+    {
       "source": "/admin",
       "destination": "/app/index.html"
     },
@@ -50,6 +54,23 @@
     {
       "source": "/api/(.*)",
       "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "no-store"
+        }
+      ]
+    },
+    {
+      "source": "/feedback",
+      "headers": [
+        {
+          "key": "Referrer-Policy",
+          "value": "no-referrer"
+        },
+        {
+          "key": "X-Robots-Tag",
+          "value": "noindex, nofollow"
+        },
         {
           "key": "Cache-Control",
           "value": "no-store"

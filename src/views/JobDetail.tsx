@@ -11,12 +11,16 @@ import { getState, put, remove, useStore } from '../lib/store'
 import type { Candidate, Job } from '../lib/types'
 import { useUi } from '../lib/uictx'
 import { fmtDays, fmtKm, fmtLpa, fmtYrs, uid } from '../lib/util'
-import { Calibration } from './Calibration'
 import { IdealProfile } from './IdealProfile'
 import { JobForm } from './JobForm'
 import { Share } from './Share'
+import { vacancyDate, turnaroundDays } from '../lib/jobDates'
+import { matchesProfileFilter } from '../lib/screening'
+import { AssignRecruiter } from './AssignRecruiter'
+import { useMe } from '../lib/me'
+import { MODE } from '../lib/runtime'
 
-type Tab = 'candidates' | 'ideal' | 'share' | 'calibration' | 'details'
+type Tab = 'candidates' | 'ideal' | 'share' | 'details' | 'assign'
 
 export function JobDetail({ id, tab = 'candidates' }: { id: string; tab?: string }) {
   const ready = useStore((s) => s.ready)
@@ -24,7 +28,12 @@ export function JobDetail({ id, tab = 'candidates' }: { id: string; tab?: string
   const [editing, setEditing] = useState(false)
   const [confirmDel, setConfirmDel] = useState(false)
   const toast = useToast()
-  const t = (['candidates', 'ideal', 'share', 'calibration', 'details'].includes(tab) ? tab : 'candidates') as Tab
+  const { me } = useMe()
+  const canAssign = MODE() !== 'cloud' || !!me?.isAdmin
+  const assignments = useStore(s => s.assignments)
+  const recruiters = useStore(s => s.recruiters)
+  const assignee = recruiters.find(r => r.id === assignments[id]?.recruiter_id)
+  const t = (['candidates', 'ideal', 'share', 'details', ...(canAssign ? ['assign'] : [])].includes(tab) ? tab : 'candidates') as Tab
 
   if (!ready) return <Skeleton rows={6} />
   if (!job) return <Empty title="This job no longer exists" action={<a className="btn" href="#jobs">Back to jobs</a>}>It may have been deleted by someone on your team.</Empty>
@@ -39,12 +48,13 @@ export function JobDetail({ id, tab = 'candidates' }: { id: string; tab?: string
     <TopBar crumb={<a className="crumb btn btn--ghost btn--icon btn--sm" href="#jobs" aria-label="Back to jobs"><ArrowLeft size={16} /></a>} title={job.title}
       actions={<Button size="sm" onClick={() => setEditing(true)}><Pencil size={14} />Edit job</Button>} />
     <p className="muted small" style={{ marginTop: 'calc(var(--space-md) * -1)' }}>{job.client || 'Internal'}, {job.location.label} ({job.workMode}). {job.expMin} to {job.expMax} years, budget {fmtBudget(job)}, notice up to {job.noticeMaxDays} days.</p>
+    {MODE() === 'cloud' && <p className="small muted">Responsible recruiter: <b>{assignee?.full_name || assignee?.email || 'Unassigned'}</b></p>}
     <Tabs value={t} onChange={(v) => { location.hash = href({ name: 'job', id, tab: v === 'candidates' ? undefined : v }).slice(1) }}
-      tabs={[{ id: 'candidates', label: 'Profiles' }, { id: 'ideal', label: 'Ideal candidate' }, { id: 'share', label: 'Share job' }, { id: 'calibration', label: 'Calibration call' }, { id: 'details', label: 'Description' }]} />
+      tabs={[{ id: 'candidates', label: 'Profiles' }, { id: 'ideal', label: 'Ideal candidate' }, { id: 'share', label: 'Share job' }, { id: 'details', label: 'Description' }, ...(canAssign ? [{ id: 'assign', label: 'Assign recruiter' }] : [])]} />
+    {t === 'assign' && <AssignRecruiter job={job} />}
     {t === 'candidates' && <Profiles job={job} />}
     {t === 'ideal' && <IdealProfile job={job} />}
     {t === 'share' && <Share job={job} />}
-    {t === 'calibration' && <Calibration job={job} />}
     {t === 'details' && <section className="section">
       <div className="grid-2">
         <div className="stack"><h2>Description</h2><p className="prose">{job.description || 'No description yet. Edit the job to add one.'}</p></div>
@@ -55,7 +65,10 @@ export function JobDetail({ id, tab = 'candidates' }: { id: string; tab?: string
             <div><dt>Budget</dt><dd className="fig">{fmtBudget(job)}</dd></div>
             <div><dt>Notice</dt><dd className="fig">{fmtDays(job.noticeMaxDays)}</dd></div>
             <div><dt>Openings</dt><dd className="fig">{job.openings}</dd></div>
-            <div><dt>Technology</dt><dd>{job.tech}</dd></div>
+            <div><dt>Vacancy creation date</dt><dd>{vacancyDate(job) || 'Not recorded'}</dd></div>
+            <div><dt>Position close date</dt><dd>{job.positionClosedDate || (job.status === 'closed' ? 'Not recorded' : 'Not closed')}</dd></div>
+            <div><dt>Turnaround time (TAT)</dt><dd>{turnaroundDays(job) == null ? '—' : `${turnaroundDays(job)} days`}</dd></div>
+            <div><dt>Skill / requirement category</dt><dd>{job.tech}</dd></div>
             <div><dt>Map pin</dt><dd>{job.location.lat != null ? 'Placed' : 'Not found'}</dd></div>
           </dl>
           <span className="label">Must-have</span><div className="chips">{job.mustSkills.map((s) => <span key={s} className="chip chip--hit">{s}</span>)}</div>
@@ -83,19 +96,21 @@ function Profiles({ job }: { job: Job }) {
   const cfg = useStore((s) => s.config)
   const [queue, setQueue] = useState<QItem[]>([])
   const [over, setOver] = useState(false)
-  const [filter, setFilter] = useState<'all' | 'short' | 'active'>('all')
+  const [filter, setFilter] = useState<'all' | 'short' | 'hold' | 'rejected'>('all')
   const [sort, setSort] = useState<'score' | 'exp' | 'ctc' | 'notice' | 'distance' | 'recent'>('score')
   const [paste, setPaste] = useState(false)
   const [pasteText, setPasteText] = useState('')
   const [useAi, setUseAi] = useState(true)
+  const commitQueue=useRef<Promise<void>>(Promise.resolve())
+  const running=useRef(false)
+  const [processing,setProcessing]=useState(false)
   const inputRef = useRef<HTMLInputElement>(null)
   const toast = useToast()
   const { openCandidate } = useUi()
 
   const list = useMemo(() => {
     let l = Object.values(cands).filter((c) => c.jobId === job.id)
-    if (filter === 'short') l = l.filter((c) => c.shortlisted)
-    if (filter === 'active') l = l.filter((c) => c.stage !== 'rejected')
+    l = l.filter(c => matchesProfileFilter(c, filter))
     const k: Record<typeof sort, (c: Candidate) => number> = {
       score: (c) => -(c.match?.score ?? -1), exp: (c) => -(c.relevantExp ?? -1), ctc: (c) => c.expectedCtcLpa ?? 1e9,
       notice: (c) => c.noticeDays ?? 1e9, distance: (c) => c.distanceKm ?? 1e9, recent: (c) => -c.createdAt,
@@ -111,8 +126,13 @@ function Profiles({ job }: { job: Job }) {
       const { text, kind } = await getText()
       if (text.trim().length < 30) throw new Error('No readable text found in this file.')
       upd(qid, { state: 'scoring' })
+      const { ex, match, distanceKm, place } = await analyse(text, job, getState().config.weights, useAi)
+      const previous=commitQueue.current
+      let release!:()=>void
+      commitQueue.current=new Promise<void>(resolve=>{release=resolve})
+      await previous
+      try {
       const st = getState()
-      const { ex, match, distanceKm, place } = await analyse(text, job, st.config.weights, useAi)
       const dupe = Object.values(st.candidates).find((c) => c.jobId === job.id && ((ex.email && c.email.toLowerCase() === ex.email.toLowerCase()) || (ex.phone && ex.phone.length >= 10 && c.phone.slice(-10) === ex.phone.slice(-10))))
       const now = Date.now()
       const base: Candidate = dupe ? { ...dupe } : {
@@ -128,23 +148,28 @@ function Profiles({ job }: { job: Job }) {
         shortlisted: dupe?.shortlisted || match.score >= st.config.shortlistAt,
         remarks: [...(base.remarks || []), { id: uid('r'), at: now, kind: 'note', text: dupe ? `Resume updated (${name}), now ${match.score}% match` : `Resume added (${name}), ${match.score}% match` }],
       }
-      if (file) await saveOriginal(cand.id, file)
+      if (file) { cand.hasOriginal = await saveOriginal(cand.id, file, job.id); if (cand.hasOriginal) cand.fileStorageVersion = 2 }
       await put('candidates', cand)
       upd(qid, { state: dupe ? 'duplicate' : 'done', note: dupe ? 'Same email or phone, profile updated' : `${match.score}%`, candId: cand.id })
+      return true
+      } finally { release() }
     } catch (e: any) {
-      upd(qid, { state: 'error', note: e.message || 'Could not read this file' })
+      upd(qid, { state: 'error', note: e.message || 'Could not read this file' });return false
     }
   }
 
   async function onFiles(files: FileList | File[]) {
-    const fs = [...files]
+    if(running.current)return
+    const fs = [...files].slice(0,60)
     if (!fs.length) return
+    if(files.length>60)toast('Processing the first 60 resumes. Add the remaining files in another batch.')
+    running.current=true;setProcessing(true)
+    const results:boolean[]=[]
     const items = fs.map((f) => ({ id: uid('q'), name: f.name, state: 'waiting' as const }))
     setQueue((q) => [...items, ...q].slice(0, 60))
     let i = 0
-    const worker = async () => { while (i < fs.length) { const k = i++; await ingest(fs[k]!.name, () => extractText(fs[k]!), items[k]!.id, fs[k]) } }
-    await Promise.all([worker(), worker()])
-    toast(`${fs.length} resume${fs.length > 1 ? 's' : ''} processed`)
+    const worker = async () => { while (i < fs.length) { const k = i++; results.push(await ingest(fs[k]!.name, () => {if(fs[k]!.size>20*1024*1024)throw new Error('File exceeds 20 MB.');return extractText(fs[k]!)}, items[k]!.id, fs[k])) } }
+    try { await Promise.all([worker(), worker()]);const saved=results.filter(Boolean).length;toast(`${saved} resumes imported or updated${saved<fs.length?`; ${fs.length-saved} failed — see the upload list`:''}`) } finally {running.current=false;setProcessing(false)}
   }
 
   async function onPaste() {
@@ -173,9 +198,9 @@ function Profiles({ job }: { job: Job }) {
         <label className="drop" data-over={over} onDragOver={(e) => { e.preventDefault(); setOver(true) }} onDragLeave={() => setOver(false)}
           onDrop={(e) => { e.preventDefault(); setOver(false); onFiles(e.dataTransfer.files) }}>
           <Upload size={20} aria-hidden />
-          <b>Drop resumes here, or choose files</b>
-          <span className="small muted">PDF, DOCX, DOC, TXT, or a photo of a resume. Up to 60 at once.</span>
-          <input ref={inputRef} type="file" multiple accept={ACCEPT} className="visually-hidden" onChange={(e) => { onFiles(e.target.files!); e.target.value = '' }} />
+          <b>Bulk candidate profiles — choose or drop multiple resumes</b>
+          <span className="small muted">PDF and Word (.docx), plus TXT, legacy DOC or images. Up to 60 at once, 20 MB each. Scans/images need AI text reading; use DOCX for best Word results.</span>
+          <input ref={inputRef} type="file" aria-label="Bulk candidate resume uploads" disabled={processing} multiple accept={ACCEPT} className="visually-hidden" onChange={(e) => { onFiles(e.target.files!); e.target.value = '' }} />
         </label>
         <div className="row" style={{ justifyContent: 'space-between' }}>
           <label className="check"><input type="checkbox" checked={useAi} onChange={(e) => setUseAi(e.target.checked)} />Read with AI (more accurate, slower)</label>
@@ -197,7 +222,7 @@ function Profiles({ job }: { job: Job }) {
     <div className="section-head" style={{ marginTop: 'var(--space-lg)' }}>
       <h2>{all.length} profile{all.length === 1 ? '' : 's'}, {all.filter((c) => c.shortlisted).length} shortlisted</h2>
       <div className="row">
-        <Groove label="Show" value={filter} onChange={setFilter} options={[{ value: 'all', label: 'All' }, { value: 'short', label: 'Shortlisted' }, { value: 'active', label: 'Not rejected' }]} />
+        <Groove label="Show" value={filter} onChange={setFilter} options={[{ value: 'all', label: 'All' }, { value: 'short', label: 'Shortlisted' }, { value: 'hold', label: 'Hold' }, { value: 'rejected', label: 'Rejected' }]} />
         <Button size="sm" onClick={shortlistTop}>Shortlist {cfg.shortlistAt}%+</Button>
         <Button size="sm" variant="ghost" onClick={rescoreAll}><RefreshCw size={14} />Re-score</Button>
       </div>

@@ -6,9 +6,15 @@ import { Button, Empty, Groove, Skeleton } from '../components/ui'
 import { href, go } from '../lib/router'
 import { useStore } from '../lib/store'
 import type { Job } from '../lib/types'
+import { useMe } from '../lib/me'
+import { MODE } from '../lib/runtime'
 import { JobForm } from './JobForm'
 
 export function Jobs() {
+  const { me } = useMe()
+  const canCreate = MODE() !== 'cloud' || !!me?.isAdmin
+  const assignments = useStore(s => s.assignments)
+  const recruiters = useStore(s => s.recruiters)
   const ready = useStore((s) => s.ready)
   const jobs = useStore((s) => s.jobs)
   const cands = useStore((s) => s.candidates)
@@ -17,13 +23,13 @@ export function Jobs() {
   const list = Object.values(jobs).filter((j) => status === 'all' || j.status === status).sort((a, b) => b.createdAt - a.createdAt)
 
   return <>
-    <TopBar title="Jobs" actions={<>
+    <TopBar title="Jobs" actions={<div className="jobs-actions">
       <Groove label="Status" value={status} onChange={setStatus} options={[{ value: 'open', label: 'Open' }, { value: 'paused', label: 'Paused' }, { value: 'closed', label: 'Closed' }, { value: 'all', label: 'All' }]} />
-      <Button variant="ink" onClick={() => setCreating(true)}><Plus size={16} />New job</Button>
-    </>} />
+      {canCreate && <Button variant="ink" onClick={() => setCreating(true)}><Plus size={16} />New job</Button>}
+    </div>} />
     {!ready ? <Skeleton /> : !list.length ? (
-      <Empty title={status === 'all' ? 'No jobs yet' : `No ${status} jobs`} action={<Button variant="ink" onClick={() => setCreating(true)}><Plus size={16} />New job</Button>}>
-        Each job holds its description, the resumes dropped on it and their match scores.
+      <Empty title={status === 'all' ? 'No jobs yet' : `No ${status} jobs`} action={canCreate ? <Button variant="ink" onClick={() => setCreating(true)}><Plus size={16} />New job</Button> : undefined}>
+        {canCreate ? 'Each job holds its description, the resumes dropped on it and their match scores.' : 'Jobs assigned to you by the admin will appear here.'}
       </Empty>
     ) : (
       <div className="cardlist">
@@ -33,6 +39,7 @@ export function Jobs() {
             <a key={j.id} className="jobcard stock" href={href({ name: 'job', id: j.id })}>
               <div className="row" style={{ justifyContent: 'space-between' }}><span className="small muted">{j.client || 'Internal'}</span>{j.status !== 'open' && <span className="stage-tag" data-stage="hold">{j.status}</span>}</div>
               <h3>{j.title}</h3>
+              {MODE() === 'cloud' && <p className="meta">Responsible: {recruiters.find(r => r.id === assignments[j.id]?.recruiter_id)?.full_name || 'Unassigned'}</p>}
               <p className="meta">{j.location.label}, {j.workMode}. {j.expMin} to {j.expMax} years.</p>
               <p className="meta"><span className="budget-chip">Budget {fmtBudget(j)}</span>{j.openings > 1 && <> · {j.openings} openings</>}</p>
               <div className="chips">{j.mustSkills.slice(0, 5).map((s) => <span key={s} className="chip">{s}</span>)}</div>

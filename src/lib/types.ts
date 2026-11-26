@@ -30,6 +30,10 @@ export const stageLabel = (s: Stage) => current.find((x) => x.id === s)?.label ?
 export interface Place { label: string; lat?: number; lng?: number }
 
 export interface Job {
+  vacancyCreatedDate?: string
+  positionClosedDate?: string
+  demoAssignmentReviews?: AssignmentReview[]
+  demoAssignment?: { recruiter_id: string; assigned_at: string; version: number }
   id: string
   title: string
   client: string
@@ -53,6 +57,7 @@ export interface Job {
 }
 
 export interface IdealProfile {
+  referenceFileName?: string
   summary: string
   traits: string[]
   expRange: string
@@ -120,6 +125,7 @@ export interface Candidate {
   employment?: Employment[]
   selfRatings?: Record<string, number> // JD skill -> 1..5, as the candidate rates themselves
   interviews?: Interview[]
+  fileStorageVersion?: number
   hasOriginal?: boolean // original resume file kept in this browser
   createdAt: number
   updatedAt: number
@@ -127,7 +133,14 @@ export interface Candidate {
 
 export interface Employment { company: string; role: string; from: string; to: string } // YYYY-MM, to may be 'present'
 
+export interface PanelFeedback {
+  candidate_id: string; interview_id: string; panelist_id: string; panelist_name: string
+  expires_at: string; requested_at: string; revoked_at: string | null; submitted_at: string | null
+  rating: number | null; recommendation: 'select' | 'hold' | 'reject' | null; comments: string | null
+}
+
 export interface Interview {
+  demoPanelFeedback?: PanelFeedback[]
   id: string
   round: Stage
   at: number
@@ -147,6 +160,9 @@ export interface Panelist {
   name: string
   email: string
   phone: string
+  availability?: string
+  availableFrom?: string
+  availableTo?: string
   calendly: string // booking link only; no Calendly API calls
   expertise: string
   active: boolean
@@ -155,6 +171,8 @@ export interface Panelist {
 }
 
 export interface Template {
+  purpose?: 'first' | 'followup' | 'invitation' | 'feedback' | 'other'
+  link?: string
   id: string
   channel: 'whatsapp' | 'email'
   name: string
@@ -177,3 +195,9 @@ export interface AppConfig {
   autoReminders: boolean // email the candidate on the morning of the interview
 }
 
+
+export interface AssignmentReview {
+ id: string | number; job_id: string; assignment_version: number; recruiter_id: string; recruiter_name: string; recruiter_email: string; job_title: string; assigned_at: string;
+ outcome: 'successful' | 'unsuccessful'; rating: number | null; feedback: string; revision: number; created_at: string; updated_at: string; updated_by: string;
+ history: {revision:number;outcome:'successful'|'unsuccessful';rating:number|null;feedback:string;updated_at:string;updated_by:string}[];
+}

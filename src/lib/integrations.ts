@@ -1,7 +1,7 @@
 import { api } from './cloud'
 import { cap, MODE, TARGET } from './runtime'
 import { getState } from './store'
-import type { Candidate, Job } from './types'
+import {stageLabel,type Candidate,type Job} from './types'
 
 /* Everything that leaves the app.
  *  - WhatsApp: wa.me links only (the recruiter presses send); there is no WhatsApp API.
@@ -36,8 +36,8 @@ export async function sendEmail(to: string, subject: string, body: string, cc: s
   return api('app', 'send-email', { to, cc, subject, text: body })
 }
 
-export async function sendEmailWithFiles(to: string, subject: string, body: string, attachments: { filename: string; content: string }[]) {
-  return api('app', 'send-email', { to, subject, text: body, attachments })
+export async function sendEmailWithFiles(to: string, subject: string, body: string, attachments: { filename: string; content: string }[], table?: string[][]) {
+  return api('app', 'send-email', { to, subject, text: body, attachments, table })
 }
 
 /** The automatic invite when a round is scheduled: the email plus a calendar file. */
@@ -158,5 +158,6 @@ export async function copy(text: string) {
 export const candidateVars = (c: Candidate, job: Job | undefined, cfg: { companyName: string; recruiterName: string }) => ({
   name: c.name.split(' ')[0] || c.name, fullName: c.name, role: job?.title || '', company: cfg.companyName,
   client: job?.client || '', location: job?.location.label || '', recruiter: cfg.recruiterName || 'the hiring team',
+  round: stageLabel([...(c.interviews || [])].sort((a,b)=>b.at-a.at)[0]?.round || c.stage),
   meetLink: c.meetLink || '', interviewTime: c.interviewAt ? new Date(c.interviewAt).toLocaleString('en-IN', { weekday: 'short', day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' }) : '',
 })

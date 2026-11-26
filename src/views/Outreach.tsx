@@ -1,15 +1,18 @@
 import { Plus, Sparkles, Trash2 } from 'lucide-react'
 import { useMemo, useState } from 'react'
 import { TopBar } from '../components/TopBar'
-import { Button, Dialog, Empty, ErrorBox, Field, Groove, Input, Skeleton, Textarea, useToast } from '../components/ui'
+import { Button, Dialog, Empty, ErrorBox, Field, Groove, Input, Select, Skeleton, useToast } from '../components/ui'
 import { complete } from '../lib/ai'
 import { put, remove, useStore } from '../lib/store'
 import type { Template } from '../lib/types'
 import { useUi } from '../lib/uictx'
-import { ago, fill, uid } from '../lib/util'
+import { ago, uid } from '../lib/util'
 
-const VARS = ['name', 'fullName', 'role', 'company', 'client', 'location', 'recruiter', 'interviewTime', 'meetLink']
-const SAMPLE = { name: 'Asha', fullName: 'Asha Example', role: 'Senior Java Developer', company: 'Example Staffing', client: 'Example Fintech', location: 'Malad, Mumbai', recruiter: 'Riya', interviewTime: 'Tue, 18 Nov, 11:00 am', meetLink: 'https://meet.google.com/abc-defg-hij' }
+import { TemplateText } from '../components/TemplateText'
+import { editableTemplate, renderTemplate, validMessageLink, TEMPLATE_PURPOSES } from '../../shared/communication.js'
+
+const VARS = ['name', 'fullName', 'role', 'company', 'client', 'location', 'recruiter', 'interviewTime', 'round']
+const SAMPLE = { round: 'L1 screening', name: 'Asha', fullName: 'Asha Example', role: 'Senior Java Developer', company: 'Example Staffing', client: 'Example Fintech', location: 'Malad, Mumbai', recruiter: 'Riya', interviewTime: 'Tue, 18 Nov, 11:00 am', meetLink: 'https://meet.google.com/abc-defg-hij' }
 
 export function Outreach() {
   const ready = useStore((s) => s.ready)
@@ -31,8 +34,8 @@ export function Outreach() {
           <div className="stack">{list.map((t) => (
             <button key={t.id} type="button" className="stock" onClick={() => setEditing(t)} style={{ all: 'unset', cursor: 'pointer', display: 'grid', gap: 'var(--space-xs)', padding: 'var(--space-lg)', background: 'var(--color-cotton)', borderRadius: 'var(--radius-card)', boxShadow: '0 0 0 1px var(--color-rule)' }}>
               <b style={{ fontWeight: 500 }}>{t.name}</b>
-              {t.subject && <span className="small">{fill(t.subject, SAMPLE)}</span>}
-              <span className="small muted" style={{ display: '-webkit-box', WebkitLineClamp: 3, WebkitBoxOrient: 'vertical', overflow: 'hidden', whiteSpace: 'pre-wrap' }}>{fill(t.body, SAMPLE)}</span>
+              {t.subject && <span className="small">{renderTemplate(t, SAMPLE).subject}</span>}
+              <span className="small muted" style={{ display: '-webkit-box', WebkitLineClamp: 3, WebkitBoxOrient: 'vertical', overflow: 'hidden', whiteSpace: 'pre-wrap' }}>{renderTemplate(t, SAMPLE).body}</span>
             </button>))}</div>
         )}
       </section>
@@ -48,36 +51,45 @@ export function Outreach() {
 }
 
 function TemplateEditor({ t, onClose, isNew }: { t: Template; onClose: () => void; isNew: boolean }) {
-  const [x, setX] = useState(t)
+  const [x, setX] = useState<Template>(() => editableTemplate(t))
+  const [previous, setPrevious] = useState('')
+  const [saving,setSaving]=useState(false)
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState('')
   const toast = useToast()
-  const save = async () => { if (!x.name.trim() || !x.body.trim()) { setErr('Give the template a name and a message.'); return } await put('templates', x); toast('Template saved'); onClose() }
-  async function draft() {
+  const save = async () => {
+    if (!x.name.trim() || !x.body.trim()) { setErr('Give the template a name and a message.'); return }
+    if (!validMessageLink(x.link)) { setErr('Use a full http:// or https:// link, or leave it empty.'); return }
+    setSaving(true);setErr('')
+    try {await put('templates',{...x,name:x.name.trim()});toast('Template saved');onClose()}
+    catch(e){setErr((e as Error).message)}finally{setSaving(false)}
+  }
+  async function draft(rephrase = false) {
     setBusy(true); setErr('')
     try {
-      const out = await complete(`Write a ${x.channel === 'whatsapp' ? 'WhatsApp message (under 400 characters, warm, no emoji)' : 'recruiting email body (under 120 words)'} for an Indian recruiter. Purpose: ${x.name || 'first contact with a candidate'}. Use these placeholders exactly where they fit: ${VARS.map((v) => `{{${v}}}`).join(', ')}. Output only the message.`)
-      setX({ ...x, body: out.trim() })
+      const out = await complete(`${rephrase ? 'Rephrase the following message, preserving all facts and personalisation fields' : 'Draft a recruiting message'}. Channel: ${x.channel}. Purpose: ${TEMPLATE_PURPOSES[x.purpose || 'other']}: ${x.name}. ${x.channel === 'whatsapp' ? 'Under 400 characters.' : 'Under 120 words.'} Plain, warm language. No invented details or links. Existing personalisation fields must remain unchanged. Available internal fields: ${VARS.map(v => `{{${v}}}`).join(', ')}. Return only the message body.\n\n${x.body}`)
+      setPrevious(x.body); setX(current => ({ ...current, body: out.trim() }))
     } catch (e: any) { setErr(e.message) } finally { setBusy(false) }
   }
   return <Dialog title={isNew ? 'New template' : 'Edit template'} onClose={onClose} wide footer={<>
     {!isNew && <Button variant="danger" onClick={async () => { await remove('templates', x.id); toast('Template deleted'); onClose() }}><Trash2 size={14} />Delete</Button>}
     <span style={{ flex: 1 }} />
-    <Button variant="ghost" onClick={onClose}>Cancel</Button><Button variant="ink" onClick={save}>Save template</Button>
+    <Button variant="ghost" onClick={onClose}>Cancel</Button><Button variant="ink" busy={saving} disabled={busy} onClick={save}>Save template</Button>
   </>}>
     <div className="grid-2" style={{ gap: 'var(--space-lg)' }}>
       <div className="stack">
         <Field label="Name"><Input value={x.name} onChange={(e) => setX({ ...x, name: e.target.value })} placeholder="Interview reminder" /></Field>
-        {x.channel === 'email' && <Field label="Subject"><Input value={x.subject || ''} onChange={(e) => setX({ ...x, subject: e.target.value })} /></Field>}
-        <Field label="Message" hint={<>Placeholders: {VARS.map((v) => <code key={v} className="kbd" style={{ marginRight: 4 }}>{`{{${v}}}`}</code>)}</>}>
-          <Textarea rows={10} value={x.body} onChange={(e) => setX({ ...x, body: e.target.value })} />
-        </Field>
-        <div><Button size="sm" busy={busy} onClick={draft}><Sparkles size={14} />Draft with AI</Button></div>
+        {x.channel === 'email' && <Field label="Subject"><TemplateText label="Template subject" value={x.subject || ''} disabled={busy} onChange={subject=>setX({...x,subject})} /></Field>}
+        <Field label="Purpose"><Select disabled={busy} value={x.purpose || 'other'} onChange={e=>setX({...x,purpose:e.target.value as Template['purpose']})} options={Object.entries(TEMPLATE_PURPOSES).map(([value,label])=>({value,label:String(label)}))} /></Field>
+        <div className="field"><span>Message</span><TemplateText label="Template message" value={x.body} disabled={busy} onChange={body=>setX({...x,body})} /></div>
+        <Field label="Optional link" hint="Leave empty to send without a link."><Input disabled={busy || x.link === '{{meetLink}}'} type="url" value={x.link === '{{meetLink}}' ? '' : x.link || ''} placeholder={x.link === '{{meetLink}}' ? 'Uses the scheduled interview link' : 'https://example.com (optional)'} onChange={e=>setX({...x,link:e.target.value})} /></Field>
+        <label className="check"><input type="checkbox" disabled={busy} checked={x.link === '{{meetLink}}'} onChange={e=>setX({...x,link:e.target.checked?'{{meetLink}}':''})} />Use the candidate’s scheduled interview link</label>
+        <div className="row"><Button size="sm" busy={busy} onClick={()=>draft()}><Sparkles size={14} />Draft with AI</Button><Button size="sm" disabled={busy || !x.body.trim()} onClick={()=>draft(true)}>Rephrase with AI</Button>{previous && <Button size="sm" disabled={busy} onClick={()=>{setX({...x,body:previous});setPrevious('')}}>Undo AI edit</Button>}</div>
         {err && <ErrorBox>{err}</ErrorBox>}
       </div>
       <div className="stack"><span className="label">Preview with sample values</span>
-        {x.subject && <b style={{ fontWeight: 500 }}>{fill(x.subject, SAMPLE)}</b>}
-        <div className="preview-msg stock">{fill(x.body, SAMPLE) || 'Your message appears here.'}</div>
+        {x.subject && <b style={{ fontWeight: 500 }}>{renderTemplate(x, SAMPLE).subject}</b>}
+        <div className="preview-msg stock">{renderTemplate(x, SAMPLE).body || 'Your message appears here.'}</div>
       </div>
     </div>
   </Dialog>

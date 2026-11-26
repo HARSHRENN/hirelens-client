@@ -6,6 +6,8 @@ import { fmtDay, fromRow, inr, invoicePdf, totalOf } from '../lib/billing'
 import { api, setAdminToken } from '../lib/cloud'
 import { saveFile } from '../lib/integrations'
 import { useMe } from '../lib/me'
+import RecruiterAnalytics from './RecruiterAnalytics'
+import { AddRecruiter } from './AddRecruiter'
 
 /* The platform admin's panel. One admin sets the keys for the whole platform and
  * sees every recruiter's numbers, trials and invoices. Recruiters never see this. */
@@ -23,9 +25,10 @@ interface Overview {
   usage: { emailsToday: number; emailsMonth: number; aiToday: number; aiMonth: number; failedToday: number; recent: { kind: string; detail: string; ok: boolean; error: string | null; at: string }[] }
 }
 
-type Tab = 'overview' | 'users' | 'invoices' | 'settings' | 'system'
+type Tab = 'overview' | 'analytics' | 'users' | 'invoices' | 'settings' | 'system'
 const TABS: { id: Tab; label: string; icon: typeof Users }[] = [
   { id: 'overview', label: 'Overview', icon: BarChart3 },
+  { id: 'analytics', label: 'Recruiter Analytics', icon: BarChart3 },
   { id: 'users', label: 'Recruiters', icon: Users },
   { id: 'invoices', label: 'Invoices', icon: Receipt },
   { id: 'settings', label: 'Keys and plan', icon: KeyRound },
@@ -39,9 +42,16 @@ export default function AdminApp() {
   const { me } = useMe()
   const [tab, setTab] = useState<Tab>(tabFromHash)
   const [data, setData] = useState<Overview | null>(null)
+  const [revision, setRevision] = useState(0)
   const [err, setErr] = useState('')
-  const load = useCallback(() => { setErr(''); api<Overview>('admin', 'overview').then(setData).catch((e) => setErr(e.message)) }, [])
+  const load = useCallback(() => { setErr(''); api<Overview>('admin', 'overview').then(d => { setData(d); setRevision(n => n + 1) }).catch((e) => setErr(e.message)) }, [])
   useEffect(() => { load() }, [load])
+  useEffect(() => {
+    if (tab !== 'overview' && tab !== 'users') return
+    const timer = window.setInterval(() => { if (document.visibilityState === 'visible') load() }, 10_000)
+    window.addEventListener('focus', load)
+    return () => { window.clearInterval(timer); window.removeEventListener('focus', load) }
+  }, [load, tab])
   useEffect(() => { const f = () => setTab(tabFromHash()); window.addEventListener('hashchange', f); return () => window.removeEventListener('hashchange', f) }, [])
   useEffect(() => { document.title = `${TABS.find((t) => t.id === tab)!.label} · Admin` }, [tab])
 
@@ -49,6 +59,7 @@ export default function AdminApp() {
     <nav className="rail" aria-label="Admin">
       <a className="wordmark" href="#overview"><Mark />Admin</a>
       <div className="nav">
+        {data?.users.find(u => u.isAdmin && u.status === 'active') && <a href={`/login?next=${encodeURIComponent(`/u/${data.users.find(u => u.isAdmin && u.status === 'active')!.username}#jobs`)}`}>Jobs and assignments</a>}
         {TABS.map(({ id, label, icon: I }) => <a key={id} href={`#${id}`} aria-current={tab === id ? 'page' : undefined}><I size={16} aria-hidden />{label}
           {id === 'users' && data && <span className="count">{data.users.length}</span>}</a>)}
       </div>
@@ -63,6 +74,7 @@ export default function AdminApp() {
         {err ? <ErrorBox onRetry={load}>{err}</ErrorBox> : !data ? <Skeleton rows={6} /> : <>
           {!data.dbConnected && <div className="setup-list" role="note"><b>Database not connected.</b> Recruiters can't sign up and settings can't be saved until Supabase is connected: Vercel → hirelens → Storage → Create Database → Supabase (free), connect it to the project, then redeploy.</div>}
           {tab === 'overview' && <OverviewTab d={data} />}
+          {tab === 'analytics' && <RecruiterAnalytics refreshKey={revision} />}
           {tab === 'users' && <UsersTab d={data} reload={load} />}
           {tab === 'invoices' && <InvoicesTab d={data} reload={load} />}
           {tab === 'settings' && <SettingsTab d={data} reload={load} />}
@@ -140,17 +152,16 @@ function UsersTab({ d, reload }: { d: Overview; reload: () => void }) {
   return <>
     <div className="row" style={{ justifyContent: 'space-between' }}>
       <label className="search" style={{ minWidth: 280 }}><Search size={15} aria-hidden /><input className="input" placeholder="Name, email, username, company" value={q} onChange={(e) => setQ(e.target.value)} aria-label="Search recruiters" /></label>
-      <span className="small muted">{rows.length} of {d.users.length}</span>
+      <div className="row"><span className="small muted">{rows.length} of {d.users.length}</span><AddRecruiter onCreated={reload}/></div>
     </div>
     <div className="table-wrap"><table className="table table--stack kpi-table">
-      <thead><tr><th>Recruiter</th><th>Plan</th><th className="num">Jobs</th><th className="num">Screened</th><th className="num">Shortlisted</th><th className="num">Interviews</th><th className="num">Selected</th><th className="num">Rejected</th><th className="num">Offered</th><th className="num">Joined</th><th className="num">Declined</th><th className="num">Due (INR)</th><th>Last active</th><th><span className="visually-hidden">Actions</span></th></tr></thead>
+      <thead><tr><th>Recruiter</th><th>Plan</th><th className="num">Jobs</th><th className="num">Screened</th><th className="num">Shortlisted</th><th className="num">Interviews</th><th className="num">Selected</th><th className="num">Rejected</th><th className="num">Offered</th><th className="num">Joined</th><th className="num">Declined</th><th>Last active</th><th><span className="visually-hidden">Actions</span></th></tr></thead>
       <tbody>{rows.map((u) => {
         const left = u.trialEnd - now
         return <tr key={u.id} style={{ opacity: u.status === 'suspended' ? 0.55 : 1 }}>
           <td><div className="who"><b>{u.full_name}{u.isAdmin && <span className="xs muted"> · admin</span>}</b><span>{u.email}</span><span className="xs muted">/u/{u.username}{u.company ? ` · ${u.company}` : ''}</span></div></td>
           <td data-label="Plan" className="small">{left > 0 ? `Trial, ${Math.ceil(left / D)}d left` : `Trial ended ${fmtDay(u.trialEnd)}`}{u.status === 'suspended' && <><br /><b style={{ color: 'var(--color-error)' }}>Suspended</b></>}</td>
           {(['jobs', 'candidates', 'shortlisted', 'interviews', 'selected', 'rejected', 'offered', 'joined', 'declined'] as (keyof Stats)[]).map((k) => <td key={k} className="num" data-label={k}>{Number(u.stats[k] || 0)}</td>)}
-          <td className="num" data-label="Due">{u.due ? inr(u.due) : '—'}</td>
           <td data-label="Last active" className="small">{ago(u.last_seen)}</td>
           <td><div className="row" style={{ gap: 4, flexWrap: 'nowrap' }}>
             {!u.isAdmin && <Button size="sm" variant="ghost" busy={busy === u.id + 'user-trial'} onClick={() => act(u.id, 'user-trial', { trialDays: u.trial_days + 7 }, `Trial extended for ${u.full_name}`)}>+7 days</Button>}

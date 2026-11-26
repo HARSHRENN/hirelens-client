@@ -1,21 +1,31 @@
-import { Plus } from 'lucide-react'
-import { useMemo, useState } from 'react'
+import { positionCounts } from '../../shared/positions.js'
+import { matchesProfileFilter } from '../lib/screening'
+import { Download, Plus } from 'lucide-react'
+import { lazy, Suspense, useMemo, useState } from 'react'
 import { TopBar } from '../components/TopBar'
-import { Button, Empty, Groove, Skeleton } from '../components/ui'
+import { Button, Empty, Groove, Skeleton, useToast } from '../components/ui'
 import { go } from '../lib/router'
 import { loadSample } from '../lib/sample'
 import { useStages, useStore } from '../lib/store'
 import type { Candidate } from '../lib/types'
 import { useUi } from '../lib/uictx'
 import { ago } from '../lib/util'
+import { useMe } from '../lib/me'
+import { MODE } from '../lib/runtime'
+import { vacancyDate, turnaroundDays } from '../lib/jobDates'
+import { excelWorkbook, recordSheet, type ExcelCell } from '../lib/excel'
+import { saveFile } from '../lib/integrations'
 import { JobForm } from './JobForm'
+import { AddRecruiter } from '../admin/AddRecruiter'
+
+const RecruiterAnalytics = lazy(() => import('../admin/RecruiterAnalytics'))
 
 type Period = 'day' | 'week' | 'fortnight' | 'month' | 'all' | 'custom'
 type Status = 'all' | 'shortlisted' | 'rejected' | 'offered' | 'joined' | 'declined'
 const DAYS: Record<Exclude<Period, 'all' | 'custom'>, number> = { day: 1, week: 7, fortnight: 14, month: 30 }
 const STATUS: { id: Status; label: string; test: (c: Candidate) => boolean }[] = [
   { id: 'all', label: 'All', test: () => true },
-  { id: 'shortlisted', label: 'Shortlisted', test: (c) => c.shortlisted },
+  { id: 'shortlisted', label: 'Shortlisted', test: (c) => matchesProfileFilter(c, 'short') },
   { id: 'rejected', label: 'Rejected', test: (c) => c.stage === 'rejected' },
   { id: 'offered', label: 'Offered', test: (c) => c.stage === 'offered' },
   { id: 'joined', label: 'Joined', test: (c) => c.stage === 'joined' },
@@ -24,15 +34,21 @@ const STATUS: { id: Status; label: string; test: (c: Candidate) => boolean }[] =
 const iso = (t: number) => new Date(t - new Date(t).getTimezoneOffset() * 6e4).toISOString().slice(0, 10)
 
 export function Dashboard() {
+  const { me } = useMe()
+  const canCreate = MODE() !== 'cloud' || !!me?.isAdmin
+  const canViewAnalytics = MODE() === 'demo' || (MODE() === 'cloud' && !!me?.isAdmin)
   const ready = useStore((s) => s.ready)
   const jobsMap = useStore((s) => s.jobs)
   const candsMap = useStore((s) => s.candidates)
+  const panelFeedback = useStore((s) => s.panelFeedback)
   const STAGES = useStages()
   const [period, setPeriod] = useState<Period>('month')
   const [from, setFrom] = useState(iso(Date.now() - 30 * 864e5))
   const [to, setTo] = useState(iso(Date.now()))
   const [status, setStatus] = useState<Status>('all')
   const [creating, setCreating] = useState(false)
+  const toast = useToast()
+  const [exporting, setExporting] = useState(false)
   const [seeding, setSeeding] = useState(false)
   const { openCandidate } = useUi()
 
@@ -57,14 +73,54 @@ export function Dashboard() {
   const upcoming = Object.values(candsMap).filter((c) => c.interviewAt && c.interviewAt > Date.now()).sort((a, b) => a.interviewAt! - b.interviewAt!)
   const count = (s: Status) => inRange.filter(STATUS.find((x) => x.id === s)!.test).length
 
-  const top = <TopBar title="Dashboard" actions={<Button variant="ink" onClick={() => setCreating(true)}><Plus size={16} />New job</Button>} />
+  const positions=positionCounts(jobs,Object.values(candsMap))
+  const closedDays = jobs.map(turnaroundDays).filter((days): days is number => days != null)
+  const averageTat = closedDays.length ? Math.round(closedDays.reduce((sum, days) => sum + days, 0) / closedDays.length * 10) / 10 : null
+  async function downloadExcel() {
+    setExporting(true)
+    try {
+      const filtered = new Set(cands.map(c => c.id))
+      const summary: ExcelCell[][] = [['Metric', 'Value'], ['Exported at', new Date().toISOString()], ['Period', period], ['From (local calendar date)', period === 'all' ? 'All time' : iso(t0)], ['To (local calendar date)', period === 'custom' ? to : iso(Date.now())], ['Status filter', status], ['Open jobs (all jobs)', jobs.filter(j => j.status === 'open').length], ...STATUS.map(st => [st.id === 'all' ? 'Profiles submitted' : st.label, count(st.id)]), ['Positions fulfilled (joined, capped at openings)',positions.positionsFulfilled],['Positions not fulfilled (remaining openings)',positions.positionsNotFulfilled],['Closed jobs with recorded TAT (all jobs)', closedDays.length], ['Average TAT, days (all jobs)', averageTat ?? 'Not available'], ['Candidate scope', 'All accessible candidates; Included in dashboard filter identifies filtered records.'], ['Resume files', 'File names and extracted text are included; original binary files are not embedded.']]
+      const jobRows = jobs.map(j => {
+        const cs = cands.filter(c => c.jobId === j.id), scored = cs.filter(c => c.match)
+        return { ...j, 'Vacancy creation date': vacancyDate(j), 'Position close date': j.positionClosedDate || '', 'TAT days': turnaroundDays(j), 'Profiles in dashboard filter': cs.length, 'Shortlisted in dashboard filter': cs.filter(c => matchesProfileFilter(c, 'short')).length, ...Object.fromEntries(STAGES.map(stage => [stage.label, cs.filter(c => c.stage === stage.id).length])), 'Average match in dashboard filter': scored.length ? Math.round(scored.reduce((sum, c) => sum + c.match!.score, 0) / scored.length) : null }
+      })
+      const all = Object.values(candsMap)
+      const workbook = await excelWorkbook([
+        { name: 'Dashboard', rows: summary },
+        { name: 'Screening stages', rows: [['Stage', 'Count'], ...STAGES.map(stage => [stage.label, byStage[stage.id] || 0])] },
+        { name: 'Categories', rows: [['Skill or requirement category', 'Candidates'], ...byTech] },
+        recordSheet('Jobs', jobRows),
+        recordSheet('Candidates', all.map(c => ({ ...c, 'Job title': jobsMap[c.jobId]?.title || '', 'Included in dashboard filter': filtered.has(c.id) }))),
+        recordSheet('Interviews', all.flatMap(c => (c.interviews || []).map(iv => ({ candidateId: c.id, candidateName: c.name, jobId: c.jobId, ...iv })))),
+        recordSheet('Panelist feedback', [...panelFeedback, ...all.flatMap(c => (c.interviews || []).flatMap(iv => iv.demoPanelFeedback || []))].map(f => ({ ...f, candidateName: candsMap[f.candidate_id]?.name || '', jobTitle: jobsMap[candsMap[f.candidate_id]?.jobId || '']?.title || '' }))),
+        recordSheet('Remarks', all.flatMap(c => c.remarks.map(r => ({ candidateId: c.id, candidateName: c.name, ...r })))),
+        recordSheet('Upcoming interviews', upcoming.map(c => ({ candidateId: c.id, name: c.name, job: jobsMap[c.jobId]?.title || '', date: new Date(c.interviewAt!).toISOString(), meetLink: c.meetLink || '' }))),
+        recordSheet('Recent activity', feed.map(({ c, ...event }) => ({ candidateId: c.id, name: c.name, ...event }))),
+      ])
+      const result = await saveFile(`HireLens-report-${iso(Date.now())}.xlsx`, workbook, 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+      toast(result === 'saved' ? 'Excel report downloaded' : 'Download cancelled or unavailable')
+    } catch (e) { toast((e as Error).message, { kind: 'error' }) }
+    finally { setExporting(false) }
+  }
+  const top = <TopBar title="Dashboard" actions={<>
+    {MODE() === 'cloud' && me?.isAdmin && <AddRecruiter/>}
+    {canViewAnalytics && <a className="btn" href="#recruiter-analytics">Recruiter Analytics</a>}
+    <Button variant="ink" busy={exporting} disabled={!ready} onClick={downloadExcel}><Download size={16} />Download Excel</Button>
+  </>} />
+  const recruiterAnalytics = canViewAnalytics ? (
+    <section className="section" aria-label="Recruiter analytics">
+      <Suspense fallback={<Skeleton rows={5} />}><RecruiterAnalytics demo={MODE() === 'demo'} /></Suspense>
+    </section>
+  ) : null
 
   if (!ready) return <>{top}<Skeleton rows={6} /></>
   if (!jobs.length) return <>{top}
-    <Empty title="No jobs yet" action={<div className="row"><Button variant="ink" onClick={() => setCreating(true)}><Plus size={16} />Create the first job</Button>
-      <Button busy={seeding} onClick={async () => { setSeeding(true); await loadSample(); setSeeding(false) }}>Load sample data</Button></div>}>
-      Start with a job description. Resumes you drop on it are read, scored against it and tracked here. Sample data adds four example jobs and sixteen made-up profiles you can delete later.
+    <Empty title="No jobs yet" action={canCreate ? <div className="row"><Button variant="ink" onClick={() => setCreating(true)}><Plus size={16} />Create the first job</Button>
+      <Button busy={seeding} onClick={async () => { setSeeding(true); await loadSample(); setSeeding(false) }}>Load sample data</Button></div> : undefined}>
+      {canCreate ? 'Start with a job description. Resumes you drop on it are read, scored against it and tracked here. Sample data adds four example jobs and sixteen made-up profiles you can delete later.' : 'Your dashboard will show jobs and candidates assigned to you by the admin.'}
     </Empty>
+    {recruiterAnalytics}
     {creating && <JobForm onClose={() => setCreating(false)} onSaved={(j) => go({ name: 'job', id: j.id })} />}
   </>
 
@@ -89,6 +145,10 @@ export function Dashboard() {
         <span className="v">{count(s.id)}</span><span className="k">{s.id === 'all' ? 'Profiles submitted' : s.label}</span></button>)}
     </section>
 
+    {recruiterAnalytics}
+
+    <section className="section" aria-label="Position fulfilment"><div className="section-head"><h2>Position fulfilment</h2><p>All accessible jobs · fulfilled means joined, capped at openings · unfilled includes active vacancies</p></div><div className="stats"><div className="stat"><span className="v">{positions.positionsFulfilled}</span><span className="k">Positions fulfilled</span></div><div className="stat"><span className="v">{positions.positionsNotFulfilled}</span><span className="k">Positions not fulfilled</span></div></div></section>
+    <section className="section" aria-label="Vacancy turnaround time"><div className="section-head"><h2>Vacancy turnaround time</h2><p>All accessible jobs · calendar days · closed jobs with recorded dates</p></div><div className="stats"><div className="stat"><span className="v">{closedDays.length}</span><span className="k">Closed jobs with TAT</span></div><div className="stat"><span className="v">{averageTat ?? '—'}</span><span className="k">Average TAT (days)</span></div></div></section>
     <section className="section" aria-labelledby="h-screen">
       <div className="section-head"><h2 id="h-screen">Screening levels</h2><p>{status === 'all' ? 'Every profile' : STATUS.find((s) => s.id === status)!.label + ' profiles'} added in the period, by where they stand now</p></div>
       <div className="funnel" style={{ gridTemplateColumns: `repeat(${STAGES.length}, minmax(0, 1fr))` }}>
@@ -120,7 +180,7 @@ export function Dashboard() {
     <section className="section" aria-labelledby="h-jobs">
       <div className="section-head"><h2 id="h-jobs">By job</h2></div>
       <div className="table-wrap"><table className="table table--stack">
-        <thead><tr><th>Job</th><th className="num">Profiles</th><th className="num">Shortlisted</th>{levels.map((l) => <th key={l.id} className="num">{l.label.split(' ')[0]}</th>)}<th className="num">Offered</th><th className="num">Joined</th><th className="num">Declined</th><th className="num">Hold</th><th className="num">Rejected</th><th className="num">Avg match</th></tr></thead>
+        <thead><tr><th>Job</th><th className="num">Profiles</th><th className="num">Shortlisted</th>{levels.map((l) => <th key={l.id} className="num">{l.label.split(' ')[0]}</th>)}<th className="num">Offered</th><th className="num">Joined</th><th className="num">Declined</th><th className="num">Hold</th><th className="num">Rejected</th><th className="num">Avg match</th><th>Vacancy created</th><th>Position closed</th><th className="num">TAT (days)</th></tr></thead>
         <tbody>{[...jobs].sort((a, b) => b.createdAt - a.createdAt).map((j) => {
           const cs = cands.filter((c) => c.jobId === j.id)
           const n = (s: string) => cs.filter((c) => c.stage === s).length
@@ -128,10 +188,10 @@ export function Dashboard() {
           const avg = scored.length ? Math.round(scored.reduce((a, c) => a + c.match!.score, 0) / scored.length) : null
           return <tr key={j.id} onClick={() => go({ name: 'job', id: j.id })}>
             <td><div className="who"><b>{j.title}</b><span>{j.client || j.tech}</span></div></td>
-            <td className="num" data-label="Profiles">{cs.length}</td><td className="num" data-label="Shortlisted">{cs.filter((c) => c.shortlisted).length}</td>
+            <td className="num" data-label="Profiles">{cs.length}</td><td className="num" data-label="Shortlisted">{cs.filter((c) => matchesProfileFilter(c, 'short')).length}</td>
             {levels.map((l) => <td key={l.id} className="num" data-label={l.label}>{n(l.id)}</td>)}
             <td className="num" data-label="Offered">{n('offered')}</td><td className="num" data-label="Joined">{n('joined')}</td><td className="num" data-label="Declined">{n('declined')}</td>
-            <td className="num" data-label="Hold">{n('hold')}</td><td className="num" data-label="Rejected">{n('rejected')}</td><td className="num" data-label="Avg">{avg == null ? '—' : avg + '%'}</td>
+            <td className="num" data-label="Hold">{n('hold')}</td><td className="num" data-label="Rejected">{n('rejected')}</td><td className="num" data-label="Avg">{avg == null ? '—' : avg + '%'}</td><td data-label="Vacancy created">{vacancyDate(j)}</td><td data-label="Position closed">{j.positionClosedDate || '—'}</td><td className="num" data-label="TAT (days)">{turnaroundDays(j) ?? '—'}</td>
           </tr>
         })}</tbody>
       </table></div>

@@ -1,3 +1,7 @@
+import { TrackerPreview } from '../components/TrackerPreview'
+import { renderTemplate, trackerHtml, trackerText, validMessageLink } from '../../shared/communication.js'
+import { TemplateText } from '../components/TemplateText'
+import { excelWorkbook } from '../lib/excel'
 import { Download, Mail, MessageCircle, Pause, Search, Send, Share2, Star, X } from 'lucide-react'
 import { useMemo, useState } from 'react'
 import { TopBar } from '../components/TopBar'
@@ -9,7 +13,7 @@ import { companiesCount, selfMatch } from '../lib/match'
 import { getState, put, useStages, useStore } from '../lib/store'
 import { stageLabel, type Candidate, type Job, type Remark, type Stage } from '../lib/types'
 import { useUi } from '../lib/uictx'
-import { ago, csv, fill, fmtDays, fmtKm, fmtLpa, fmtYrs, uid } from '../lib/util'
+import { ago, csv, fmtDays, fmtKm, fmtLpa, fmtYrs, uid } from '../lib/util'
 
 /* The tracker: tick candidates down the side and fields across the top. Ticked rows
  * and ticked columns are what every export, mail and client share contains. */
@@ -82,9 +86,14 @@ export function Candidates() {
     return [['Name', ...use.map((c) => c.label)], ...who.map((c) => [c.name, ...use.map((col) => { const v = col.value(c, jobs[c.jobId]); return v == null ? '' : String(v) })])]
   }
 
-  function bulk(p: (c: Candidate) => Partial<Candidate>, text: string) {
-    picked.forEach((c) => put('candidates', { ...c, ...p(c), remarks: [...c.remarks, { id: uid('r'), at: Date.now(), kind: 'stage', text } as Remark] }))
-    toast(`${picked.length} profile${picked.length > 1 ? 's' : ''} updated`); setRows(new Set())
+  const [updating,setUpdating]=useState(false)
+  async function bulk(p: (c: Candidate) => Partial<Candidate>, text: string) {
+    if(updating)return
+    setUpdating(true)
+    const results=await Promise.allSettled(picked.map(c=>{const latest=getState().candidates[c.id] || c;return put('candidates',{...latest,...p(latest),remarks:[...latest.remarks,{id:uid('r'),at:Date.now(),kind:'stage',text} as Remark]})}))
+    const failed=results.filter(r=>r.status==='rejected').length
+    toast(`${results.length-failed} profiles saved${failed?`; ${failed} could not be saved. Retry those profiles.`:''}`,failed?{kind:'error'}:undefined)
+    if(!failed)setRows(new Set());setUpdating(false)
   }
   async function exportCsv() {
     const r = await saveFile(`tracker-${new Date().toISOString().slice(0, 10)}.csv`, '﻿' + csv(tableRows(target)), 'text/csv')
@@ -104,7 +113,7 @@ export function Candidates() {
     <TopBar title="Candidate tracker" actions={<>
       <Button onClick={exportCsv} disabled={!list.length}><Download size={14} />Export</Button>
       <Button onClick={() => setDialog('mail')} disabled={!list.length}><Mail size={14} />Mail tracker</Button>
-      <Button variant="ink" onClick={() => setDialog('client')} disabled={!list.length}><Share2 size={14} />Share with client</Button>
+      <Button variant="ink" onClick={() => setDialog('client')} disabled={!picked.length} title="Select candidates to share their tracker"><Share2 size={14} />Share with client</Button>
     </>} />
     <div className="row" style={{ gap: 'var(--space-sm)' }}>
       <div style={{ position: 'relative', flex: '1 1 220px', maxWidth: 300 }}>
@@ -118,9 +127,9 @@ export function Candidates() {
       {(from || to) && <Button size="sm" variant="ghost" onClick={() => { setFrom(''); setTo('') }}>Clear dates</Button>}
     </div>
 
-    {picked.length > 0 && <div className="bulkbar" role="toolbar" aria-label="Selected candidates">
+    {picked.length > 0 && <div className="bulkbar" aria-busy={updating} style={updating?{pointerEvents:'none',opacity:.65}:undefined} role="toolbar" aria-label="Selected candidates">
       <b>{picked.length} selected</b>
-      <Button size="sm" onClick={() => bulk(() => ({ shortlisted: true }), 'Shortlisted')}><Star size={14} />Shortlist</Button>
+      <Button size="sm" onClick={() => bulk(c => ({ shortlisted: true, stage: ['hold','rejected'].includes(c.stage) ? 'contacted' : c.stage }), 'Shortlisted')}><Star size={14} />Shortlist</Button>
       <Button size="sm" onClick={() => bulk(() => ({ stage: 'hold' }), 'Moved to On hold')}><Pause size={14} />Hold</Button>
       <Button size="sm" onClick={() => bulk(() => ({ stage: 'rejected', shortlisted: false }), 'Moved to Rejected')}><X size={14} />Reject</Button>
       <div style={{ width: 170 }}><Select aria-label="Move selected to" value="" onChange={(e) => e.target.value && bulk(() => ({ stage: e.target.value as Stage }), `Moved to ${stageLabel(e.target.value)}`)} options={[{ value: '', label: 'Move to…' }, ...STAGES.map((s) => ({ value: s.id, label: s.label }))]} /></div>
@@ -160,7 +169,7 @@ export function Candidates() {
         })}</tbody>
       </table></div>
     )}
-    {list.length > 0 && <p className="xs muted">{list.length} shown{picked.length ? `, ${picked.length} ticked` : ''}. Ticked rows and ticked columns go into Export, Mail tracker and Share with client; with no rows ticked, everything shown goes. Colours: {cfg.bands.potential}%+ potential match, {cfg.bands.near}–{cfg.bands.potential - 1}% near match, under {cfg.bands.near}% not a match.</p>}
+    {list.length > 0 && <p className="xs muted">{list.length} shown{picked.length ? `, ${picked.length} ticked` : ''}. Ticked rows and ticked columns go into Export, Mail tracker and Share with client; select candidate rows before sharing with a client; Export and Mail tracker use all shown rows when none are selected. Colours: {cfg.bands.potential}%+ potential match, {cfg.bands.near}–{cfg.bands.potential - 1}% near match, under {cfg.bands.near}% not a match.</p>}
 
     {dialog === 'mail' && <MailTracker who={target} rows={tableRows(target)} onClose={() => setDialog(null)} />}
     {dialog === 'client' && <ShareClient who={target} rows={(hide) => tableRows(target, hide)} onClose={() => setDialog(null)} />}
@@ -183,7 +192,7 @@ function MailTracker({ who, rows, onClose }: { who: Candidate[]; rows: string[][
     <LinkButton href={gmailLink(to, subject, `${note}\n\n${table}${rows.length > 41 ? '\n…' : ''}`)} onClick={() => saveFile('candidate-tracker.csv', file, 'text/csv')}><Mail size={14} />Open Gmail draft</LinkButton>
     {canServerSend() && <Button variant="ink" busy={busy} disabled={!/@/.test(to)} onClick={async () => {
       setBusy(true)
-      try { await sendEmailWithFiles(to, subject, note, [{ filename: 'candidate-tracker.csv', content: btoa(unescape(encodeURIComponent(file))) }]); toast('Tracker sent with the CSV attached'); onClose() }
+      try { await sendEmailWithFiles(to, subject, note, [{ filename: 'candidate-tracker.csv', content: btoa(unescape(encodeURIComponent(file))) }],rows); toast('Tracker sent with the CSV attached'); onClose() }
       catch (e: any) { toast(e.message, { kind: 'error' }) } finally { setBusy(false) }
     }}><Send size={14} />Send with attachment</Button>}
   </>}>
@@ -192,6 +201,7 @@ function MailTracker({ who, rows, onClose }: { who: Candidate[]; rows: string[][
       <Field label="Subject"><Input value={subject} onChange={(e) => setSubject(e.target.value)} /></Field>
       <Field label="Message" className="span-2"><Textarea rows={5} value={note} onChange={(e) => setNote(e.target.value)} /></Field>
     </div>
+    <TrackerPreview rows={rows}/>
     <p className="xs muted">{rows.length - 1} rows, {rows[0]!.length} columns. Gmail draft: the CSV downloads, the table goes into the mail body, attach the CSV before sending.{canServerSend() ? ' Send with attachment emails it from the platform.' : ''}</p>
   </Dialog>
 }
@@ -206,15 +216,20 @@ function ShareClient({ who, rows, onClose }: { who: Candidate[]; rows: (hideCont
   const toast = useToast()
   const agency = cfg.companyName || 'Agency'
   const subject = `Profiles for your review: ${[...new Set(who.map((c) => jobs[c.jobId]?.title).filter(Boolean))].join(', ')}`
-  const body = `Hi,\n\nSharing ${who.length} profile${who.length > 1 ? 's' : ''} for your review. The tracker and resumes are attached.\n\nRegards,\n${cfg.recruiterName || agency}\n${agency}`
+  const [note,setNote]=useState(`Hi,\n\nPlease review the selected candidates below.\n\nRegards,\n${cfg.recruiterName || agency}`)
+  const tableData=rows(format==='client').map(row=>row.map(value=>format==='client'?redact(value):value))
+  const body=note+'\n\n'+trackerText(tableData)
+  async function workbook(){return excelWorkbook([{name:'Candidate tracker',rows:tableData}])}
+
 
   async function build() {
     const { default: JSZip } = await import('jszip')
     const zip = new JSZip()
-    zip.file('tracker.csv', '﻿' + csv(rows(format === 'client')))
+    zip.file('tracker.csv', '﻿' + csv(tableData))
+    zip.file('tracker.xlsx',await (await workbook()).arrayBuffer())
     let missing = 0
     for (const c of who) {
-      const base = c.name.replace(/[^\w ]+/g, '').trim().replace(/\s+/g, '-')
+      const base = c.name.replace(/[^\w ]+/g, '').trim().replace(/\s+/g, '-')+'-'+c.id
       if (format === 'client') zip.file(`resumes/${base}-${agency.replace(/\W+/g, '-')}.pdf`, clientResumePdf(c, jobs[c.jobId], agency))
       else {
         const f = await getOriginal(c.id, c.fileName)
@@ -228,9 +243,10 @@ function ShareClient({ who, rows, onClose }: { who: Candidate[]; rows: (hideCont
   return <Dialog title={`Share ${who.length} profile${who.length > 1 ? 's' : ''} with the client`} onClose={onClose} wide footer={<>
     <Button variant="ghost" onClick={onClose}>Close</Button>
     <Button busy={busy === 'zip'} onClick={async () => {
-      setBusy('zip'); const { blob, missing } = await build()
+      setBusy('zip'); try { const { blob, missing } = await build()
       const r = await saveFile(`profiles-${new Date().toISOString().slice(0, 10)}.zip`, blob, 'application/zip'); setBusy('')
       toast(r === 'saved' ? `Pack saved${missing ? `; ${missing} original file${missing > 1 ? 's were' : ' was'} not in this browser, so the resume text went in instead` : ''}` : 'Downloads are blocked in this preview')
+      }catch(e){toast((e as Error).message,{kind:'error'})}finally{setBusy('')}
     }}><Download size={14} />Download pack (.zip)</Button>
     <LinkButton href={gmailLink(to, subject, body)}><Mail size={14} />Gmail draft</LinkButton>
     {canServerSend() && <Button variant="ink" busy={busy === 'send'} disabled={!/@/.test(to)} onClick={async () => {
@@ -238,7 +254,7 @@ function ShareClient({ who, rows, onClose }: { who: Candidate[]; rows: (hideCont
       try {
         const { blob } = await build()
         const b64 = await new Promise<string>((r) => { const fr = new FileReader(); fr.onload = () => r(String(fr.result).split(',')[1]!); fr.readAsDataURL(blob) })
-        await sendEmailWithFiles(to, subject, body, [{ filename: 'profiles.zip', content: b64 }]); toast('Sent to the client with the pack attached'); onClose()
+        await sendEmailWithFiles(to, subject, note, [{ filename: 'profiles.zip', content: b64 }],tableData); toast('Sent to the client with the pack attached'); onClose()
       } catch (e: any) { toast(e.message, { kind: 'error' }) } finally { setBusy('') }
     }}><Send size={14} />Send to client</Button>}
   </>}>
@@ -247,7 +263,12 @@ function ShareClient({ who, rows, onClose }: { who: Candidate[]; rows: (hideCont
       ? `Each resume is rebuilt in ${agency}'s layout with email and phone numbers removed everywhere and "${agency}" watermarked on every page. Phone and Email columns are left out of the tracker too.`
       : 'The files exactly as the candidates sent them, with the tracker as you ticked it. Originals are kept in the browser that uploaded them.'}</p>
     <Field label="Client email"><Input type="email" inputMode="email" value={to} onChange={(e) => setTo(e.target.value)} placeholder="hiring.manager@example.com" /></Field>
-    <ul className="queue">{who.slice(0, 8).map((c) => <li key={c.id}><span>{c.name}</span><span className="small muted">{redact(c.currentCompany || '')}</span>{c.match && <BandChip score={c.match.score} />}</li>)}{who.length > 8 && <li><span className="small muted">and {who.length - 8} more</span></li>}</ul>
+    <Field label="Message to client"><Textarea rows={4} value={note} onChange={e=>setNote(e.target.value)} /></Field>
+    <p className="small muted">Only these {who.length} selected profiles and the checked tracker columns are shared. CTC values are in LPA and experience is in years.</p>
+    <TrackerPreview rows={tableData}/>
+    <div className="row"><Button onClick={async()=>{try{await saveFile('candidate-tracker.xlsx',await workbook(),'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')}catch(e){toast((e as Error).message,{kind:'error'})}}}><Download size={14}/>Download tracker Excel</Button>
+    <Button onClick={async()=>{try{await navigator.clipboard.write([new ClipboardItem({'text/html':new Blob([trackerHtml(tableData)],{type:'text/html'}),'text/plain':new Blob([trackerText(tableData)],{type:'text/plain'})})]);toast('Table copied. Paste it into your email.')}catch{toast(await import('../lib/integrations').then(x=>x.copy(trackerText(tableData)))?'Plain tracker copied':'Copy unavailable; download the tracker instead')}}}>Copy table for email</Button></div>
+    <p className="xs muted">Send to client includes the table inside the email and the resume pack as an attachment. Gmail drafts include the tracker as text; paste the copied table for formatting and attach the downloaded pack yourself.</p>
   </Dialog>
 }
 
@@ -262,12 +283,19 @@ function Broadcast({ channel, who, onClose }: { channel: 'whatsapp' | 'email'; w
   const [sent, setSent] = useState<Set<string>>(new Set())
   const toast = useToast()
   const reach = who.filter((c) => (channel === 'whatsapp' ? c.phone : c.email))
-  const msg = (c: Candidate) => fill(t?.body || '', candidateVars(c, jobs[c.jobId], cfg))
+  const [messageEdit,setMessageEdit]=useState<string|null>(null)
+  const [linkEdit,setLinkEdit]=useState<string|null>(null)
+  const effective={...t,body:messageEdit ?? t?.body ?? '',link:linkEdit ?? t?.link}
+  const msg = (c: Candidate) => renderTemplate(effective, candidateVars(c, jobs[c.jobId], cfg)).body
   const log = (c: Candidate, text: string) => put('candidates', { ...getState().candidates[c.id]!, stage: c.stage === 'new' ? 'contacted' : c.stage, remarks: [...c.remarks, { id: uid('r'), at: Date.now(), kind: channel, text } as Remark] })
-  const generic = fill(t?.body || '', { ...candidateVars(who[0]!, jobs[who[0]!.jobId], cfg), name: 'there', fullName: 'there', interviewTime: '', meetLink: '' })
+  const generic = renderTemplate(effective, { ...candidateVars(who[0]!, jobs[who[0]!.jobId], cfg), name: 'there', fullName: 'there', interviewTime: '', meetLink: '' }).body
 
   return <Dialog title={`${channel === 'whatsapp' ? 'WhatsApp' : 'Email'} ${reach.length} candidate${reach.length === 1 ? '' : 's'}`} onClose={onClose} wide footer={<Button variant="ghost" onClick={onClose}>Done</Button>}>
-    <Field label="Template"><Select value={t?.id || ''} onChange={(e) => setTid(e.target.value)} options={list.length ? list.map((x) => ({ value: x.id, label: x.name })) : [{ value: '', label: 'No templates' }]} /></Field>
+    <Field label="Template"><Select value={t?.id || ''} onChange={(e) => {setTid(e.target.value);setMessageEdit(null);setLinkEdit(null)}} options={list.length ? list.map((x) => ({ value: x.id, label: x.name })) : [{ value: '', label: 'No templates' }]} /></Field>
+    <div className="field"><span>Message</span><TemplateText label="Bulk message" value={effective.body} onChange={setMessageEdit} /></div>
+    <Field label="Optional link" hint="Leave empty to send without a link. A scheduled interview link is filled separately for each WhatsApp recipient."><Input value={effective.link === '{{meetLink}}' ? '' : effective.link || ''} placeholder={effective.link === '{{meetLink}}' ? 'Scheduled interview link; clear to omit' : 'https://example.com (optional)'} onChange={e=>setLinkEdit(e.target.value)} /></Field>
+    {effective.link === '{{meetLink}}' && <Button size="sm" onClick={()=>setLinkEdit('')}>Send without interview link</Button>}
+    {!validMessageLink(effective.link) && <p role="alert">Enter a valid http:// or https:// link.</p>}
     {who.length > reach.length && <p className="small muted">{who.length - reach.length} ticked profile{who.length - reach.length > 1 ? 's have' : ' has'} no {channel === 'whatsapp' ? 'phone number' : 'email'} and {who.length - reach.length > 1 ? 'are' : 'is'} skipped.</p>}
     {channel === 'whatsapp' ? <>
       <p className="small muted">Each message is personalised. Open them one by one and press send in WhatsApp. Every send is logged in the candidate's remarks.</p>
@@ -275,9 +303,9 @@ function Broadcast({ channel, who, onClose }: { channel: 'whatsapp' | 'email'; w
         <li key={c.id}><span>{c.name}</span><span className="small muted fig">{c.phone}</span>
           <LinkButton size="sm" variant={sent.has(c.id) ? 'ghost' : 'card'} href={waLink(c.phone, msg(c))} onClick={() => { setSent((s) => new Set(s).add(c.id)); log(c, `WhatsApp opened (broadcast): ${t?.name || 'message'}`) }}>{sent.has(c.id) ? 'Opened' : 'Open'}</LinkButton></li>))}</ul>
     </> : <>
-      <div className="preview-msg stock">{t?.subject && <b style={{ fontWeight: 500 }}>{fill(t.subject, { ...candidateVars(who[0]!, jobs[who[0]!.jobId], cfg) })}{'\n\n'}</b>}{generic}</div>
+      <div className="preview-msg stock">{t?.subject && <b style={{ fontWeight: 500 }}>{renderTemplate(effective,candidateVars(who[0]!, jobs[who[0]!.jobId], cfg)).subject}{'\n\n'}</b>}{generic}</div>
       <p className="small muted">One Gmail draft with everyone in BCC, so no candidate sees the others. Names are replaced with "there". Bulk mail goes through your own Gmail so the platform's free email allowance stays free for invites, reminders and invoices.</p>
-      <div><LinkButton variant="ink" href={`https://mail.google.com/mail/?view=cm&fs=1&bcc=${encodeURIComponent(reach.map((c) => c.email).join(','))}&su=${encodeURIComponent(fill(t?.subject || '', candidateVars(who[0]!, jobs[who[0]!.jobId], cfg)))}&body=${encodeURIComponent(generic)}`}
+      <div><LinkButton variant="ink" href={`https://mail.google.com/mail/?view=cm&fs=1&bcc=${encodeURIComponent(reach.map((c) => c.email).join(','))}&su=${encodeURIComponent(renderTemplate(effective,candidateVars(who[0]!, jobs[who[0]!.jobId], cfg)).subject)}&body=${encodeURIComponent(generic)}`}
         onClick={() => { reach.forEach((c) => log(c, `Email drafted (broadcast): ${t?.name || 'message'}`)); toast(`${reach.length} logged`) }}><Mail size={14} />Open Gmail with {reach.length} in BCC</LinkButton></div>
     </>}
   </Dialog>

@@ -1,8 +1,9 @@
-import { BriefcaseBusiness, Columns3, CreditCard, LayoutDashboard, LogOut, Menu, MessagesSquare, Settings2, ShieldCheck, UserCheck, Users } from 'lucide-react'
+import { BarChart3, BriefcaseBusiness, Columns3, CreditCard, LayoutDashboard, LogOut, Menu, MessagesSquare, Settings2, ShieldCheck, UserCheck, Users } from 'lucide-react'
 import { lazy, Suspense, useCallback, useEffect, useMemo, useState } from 'react'
 import { Forgot, Login, Reset, Signup, Verify } from './auth/AuthPages'
 import { Mark } from './components/Mark'
-import { Button, PressFilter, Skeleton, ToastHost, useToast } from './components/ui'
+import { Button, Empty, PressFilter, Skeleton, ToastHost, useToast } from './components/ui'
+import { TopBar } from './components/TopBar'
 import { aiStatus } from './lib/ai'
 import { adminToken, api, ApiError, loadConfig, setAdminToken, signOut, supa, type Me } from './lib/cloud'
 import { MeCtx } from './lib/me'
@@ -22,7 +23,9 @@ import { Panelists } from './views/Panelists'
 import { Pipeline } from './views/Pipeline'
 import { Settings } from './views/Settings'
 
+const PanelFeedbackPage = lazy(() => import('./views/PanelFeedbackPage'))
 const AdminApp = lazy(() => import('./admin/AdminApp'))
+const RecruiterAnalytics = lazy(() => import('./admin/RecruiterAnalytics'))
 
 export { Mark }
 
@@ -37,6 +40,7 @@ export default function App() {
   let page: React.ReactNode
   if (TARGET === 'artifact') { setMode('artifact'); page = <Workspace /> }
   else if (path === '/demo') { setMode('demo'); page = <Workspace /> }
+  else if (path === '/feedback') page = <Suspense fallback={<p>Opening feedback…</p>}><PanelFeedbackPage /></Suspense>
   else if (path === '/login') page = <Login />
   else if (path === '/signup') page = <Signup />
   else if (path === '/verify') page = <Verify />
@@ -134,6 +138,7 @@ function Setup() {
 
 const NAV: { r: Route; label: string; icon: typeof Users }[] = [
   { r: { name: 'dashboard' }, label: 'Dashboard', icon: LayoutDashboard },
+  { r: { name: 'recruiter-analytics' }, label: 'Recruiter Analytics', icon: BarChart3 },
   { r: { name: 'jobs' }, label: 'Jobs', icon: BriefcaseBusiness },
   { r: { name: 'candidates' }, label: 'Tracker', icon: Users },
   { r: { name: 'pipeline' }, label: 'Pipeline', icon: Columns3 },
@@ -157,12 +162,31 @@ function Workspace({ me }: { me?: Me }) {
   const nCands = useStore((s) => Object.keys(s.candidates).length)
   const [ai, setAi] = useState<{ ok: boolean; via: string } | null>(null)
   const mode = MODE()
+  const canViewAnalytics = mode === 'demo' || (mode === 'cloud' && !!me?.isAdmin)
   const trialLeft = me ? me.trialEnd - Date.now() : 0
 
   useEffect(() => {
     onStoreError((m) => toast(m, { kind: 'error' }))
     initStore({ userId: me?.profile.id }).catch((e) => toast(e.message, { kind: 'error' }))
   }, [toast, me?.profile.id])
+  useEffect(() => {
+    if (MODE() === 'demo') {
+      const refreshDemo = (event: StorageEvent) => { if (event.key === 'hl-demo-data-v1') initStore().catch(() => {}) }
+      window.addEventListener('storage', refreshDemo)
+      return () => window.removeEventListener('storage', refreshDemo)
+    }
+    if (MODE() !== 'cloud' || !me?.profile.id) return
+    let pending = false
+    const refresh = async () => {
+      if (pending || document.visibilityState !== 'visible') return
+      pending = true
+      try { await initStore({ userId: me.profile.id }) } catch { /* keep the current data until the next refresh */ }
+      finally { pending = false }
+    }
+    const timer = window.setInterval(refresh, 10_000)
+    window.addEventListener('focus', refresh)
+    return () => { window.clearInterval(timer); window.removeEventListener('focus', refresh) }
+  }, [me?.profile.id])
   useEffect(() => {
     if (!ready || offline) return
     ensureTemplates()
@@ -190,7 +214,7 @@ function Workspace({ me }: { me?: Me }) {
         <nav className="rail" data-open={open} aria-label="Main">
           <a className="wordmark" href="#dashboard" aria-label={`${name} home`}><Mark />{name}</a>
           <div className="nav">
-            {NAV.map(({ r, label, icon: I }) => (
+            {NAV.filter(({ r }) => r.name !== 'recruiter-analytics' || canViewAnalytics).map(({ r, label, icon: I }) => (
               <a key={r.name} href={href(r)} aria-current={active(r) ? 'page' : undefined}>
                 <I size={16} aria-hidden />{label}
                 {r.name === 'jobs' && nJobs > 0 && <span className="count">{nJobs}</span>}
@@ -216,6 +240,11 @@ function Workspace({ me }: { me?: Me }) {
           <main className="page" id="main">
             {!ready && route.name !== 'billing' && route.name !== 'settings' ? <Skeleton rows={6} /> : <>
               {route.name === 'dashboard' && <Dashboard />}
+              {route.name === 'recruiter-analytics' && <>
+                <TopBar title="Recruiter Analytics" actions={<a className="btn" href="#dashboard">Back to dashboard</a>} />
+                {canViewAnalytics ? <Suspense fallback={<Skeleton rows={6} />}><RecruiterAnalytics demo={mode === 'demo'} /></Suspense>
+                  : <Empty title="Admin access required">Recruiter comparisons are available to workspace admins.</Empty>}
+              </>}
               {route.name === 'jobs' && <Jobs />}
               {route.name === 'job' && <JobDetail id={route.id} tab={route.tab} />}
               {route.name === 'candidates' && <Candidates />}
@@ -233,4 +262,4 @@ function Workspace({ me }: { me?: Me }) {
   )
 }
 
-const titleOf = (r: Route) => ({ dashboard: 'Dashboard', jobs: 'Jobs', job: 'Job', candidates: 'Tracker', pipeline: 'Pipeline', outreach: 'Outreach', settings: 'Settings', panelists: 'Panelists', billing: 'Billing' })[r.name]
+const titleOf = (r: Route) => ({ dashboard: 'Dashboard', 'recruiter-analytics': 'Recruiter Analytics', jobs: 'Jobs', job: 'Job', candidates: 'Tracker', pipeline: 'Pipeline', outreach: 'Outreach', settings: 'Settings', panelists: 'Panelists', billing: 'Billing' })[r.name]

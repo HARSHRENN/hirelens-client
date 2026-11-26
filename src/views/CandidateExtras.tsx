@@ -1,6 +1,8 @@
+import { api } from '../lib/cloud'
+import { renderTemplate } from '../../shared/communication.js'
 import { CalendarPlus, Download, FileText, Video } from 'lucide-react'
 import { useEffect, useState } from 'react'
-import { BandChip, Button, Field, Input, LinkButton, Select, Textarea, useToast } from '../components/ui'
+import { BandChip, Button, ErrorBox, Field, Input, LinkButton, Select, Textarea, useToast } from '../components/ui'
 import { clientResumePdf } from '../lib/clientResume'
 import { getOriginal } from '../lib/files'
 import { MODE } from '../lib/runtime'
@@ -8,10 +10,10 @@ import { calendarLink, canServerSend, candidateVars, saveFile, sendInterviewInvi
 import { companiesCount, selfMatch, yearsAt } from '../lib/match'
 import { getState, put, useStages, useStore } from '../lib/store'
 import type { Candidate, Employment, Interview } from '../lib/types'
+import { PanelFeedbackRequests } from './PanelFeedbackRequests'
 import { stageLabel } from '../lib/types'
 import { fmtDate, uid } from '../lib/util'
 
-const fill = (t: string, v: Record<string, string>) => t.replace(/\{\{\s*(\w+)\s*\}\}/g, (m, k) => (v[k] ? v[k] : m))
 
 /* ---------------- employment stint: one bar per job across the years ---------------- */
 export function EmploymentTimeline({ c }: { c: Candidate }) {
@@ -99,7 +101,8 @@ export function PanelInterviews({ c }: { c: Candidate }) {
   const autoInvites = useStore((s) => s.config.autoInvites)
   const [mail, setMail] = useState(true)
   const [busy, setBusy] = useState(false)
-  const canMail = canServerSend() && autoInvites && !!c.email
+  const canMail = canServerSend() && autoInvites && (!!c.email || who.length > 0)
+  const [scheduleError,setScheduleError]=useState('')
   const active = Object.values(panelists).filter((p) => p.active)
   const list = [...(c.interviews || [])].sort((a, b) => b.at - a.at)
   const start = new Date(when)
@@ -109,28 +112,36 @@ export function PanelInterviews({ c }: { c: Candidate }) {
   async function schedule() {
     if (isNaN(start.getTime())) return
     if (start.getTime() < Date.now() - 6e4) return toast('Pick a time in the future.', { kind: 'error' })
-    setBusy(true)
-    const iv: Interview = { id: uid('iv'), round, at: start.getTime(), panelistIds: who, meetLink: link.trim() || undefined, result: 'pending', createdAt: Date.now() }
-    const when = start.toLocaleString('en-IN', { day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' })
-    let next: Candidate = { ...c, stage: round, interviewAt: iv.at, meetLink: iv.meetLink || c.meetLink, interviews: [...(c.interviews || []), iv],
-      remarks: [...c.remarks, { id: uid('r'), at: Date.now(), kind: 'meet', text: `${stageLabel(round)} set for ${when}${who.length ? ' with ' + who.map((id) => panelists[id]?.name).join(', ') : ''}` }] }
-    await put('candidates', next)
-    if (canMail && mail) {
-      // the automatic invite: the candidate's "Interview invite" email template, a calendar file, the panel in CC
-      const st = getState()
-      const tpl = Object.values(st.templates).find((t) => t.channel === 'email' && /invite/i.test(t.name))
-      const vars = { ...candidateVars(next, job, st.config), round: stageLabel(round) }
-      const subject = fill(tpl?.subject || 'Interview scheduled: {{role}}', vars)
-      const text = fill(tpl?.body || 'Hi {{name}},\n\nYour {{round}} interview for {{role}} is on {{interviewTime}}.\n\nGoogle Meet: {{meetLink}}\n\nRegards,\n{{recruiter}}\n{{company}}', vars).replace(/\n?.*\{\{meetLink\}\}.*\n?/g, '\n')
-      try {
-        await sendInterviewInvite({ to: c.email, cc: who.map((id) => panelists[id]?.email || '').filter(Boolean), subject, text, start: iv.at, minutes: 45, title: `${stageLabel(round)}: ${c.name} for ${job?.title || 'the role'}`, location: iv.meetLink, interviewId: iv.id })
-        next = getState().candidates[c.id] || next
-        await put('candidates', { ...next, interviews: (next.interviews || []).map((x) => (x.id === iv.id ? { ...x, inviteSentAt: Date.now() } : x)),
-          remarks: [...next.remarks, { id: uid('r'), at: Date.now(), kind: 'email', text: `Interview invite emailed to ${c.email}${who.length ? ` (panel in CC)` : ''} with a calendar file` }] })
-        toast(`Interview scheduled and invite emailed to ${c.email}`)
-      } catch (e: any) { toast(`Interview saved, but the invite email failed: ${e.message}`, { kind: 'error' }) }
-    } else toast(c.email || !canServerSend() ? 'Interview scheduled. Send the invite from Message.' : 'Interview scheduled. This profile has no email, so send the invite on WhatsApp from Message.')
-    setLink(''); setBusy(false)
+    setBusy(true);setScheduleError('')
+    try {
+      const iv: Interview = { id: uid('iv'), round, at: start.getTime(), panelistIds: who, meetLink: link.trim() || undefined, result: 'pending', createdAt: Date.now() }
+      const when = start.toLocaleString('en-IN', { day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' })
+      let next: Candidate = { ...c, stage: round, interviewAt: iv.at, meetLink: iv.meetLink || c.meetLink, interviews: [...(c.interviews || []), iv],
+        remarks: [...c.remarks, { id: uid('r'), at: Date.now(), kind: 'meet', text: `${stageLabel(round)} set for ${when}${who.length ? ' with ' + who.map((id) => panelists[id]?.name).join(', ') : ''}` }] }
+      await put('candidates', next)
+      const failures:string[]=[]
+      if (canMail && mail) {
+        if(c.email) {
+          const st = getState()
+          const tpl = Object.values(st.templates).find((t) => t.channel === 'email' && /invite/i.test(t.name))
+          const vars = { ...candidateVars(next, job, st.config), round: stageLabel(round) }
+          const rendered = renderTemplate(tpl || {subject:'Interview scheduled: {{role}}',body:'Hi {{name}},\n\nYour {{round}} interview for {{role}} is on {{interviewTime}}.\n\nRegards,\n{{recruiter}}\n{{company}}',link:'{{meetLink}}'}, vars)
+          try {
+            // Candidate invitation never contains a panelist's private feedback link.
+            await sendInterviewInvite({ to: c.email, cc: [], subject:rendered.subject, text:rendered.body, start:iv.at, minutes:45, title:`${stageLabel(round)}: ${c.name} for ${job?.title || 'the role'}`, location:iv.meetLink, interviewId:iv.id })
+            next = getState().candidates[c.id] || next
+            await put('candidates', { ...next, interviews:(next.interviews || []).map(x=>x.id===iv.id ? {...x,inviteSentAt:Date.now()} : x), remarks:[...next.remarks,{id:uid('r'),at:Date.now(),kind:'email',text:`Interview invite emailed to ${c.email} with a calendar file`}] })
+          } catch(e) {failures.push(`Candidate invite: ${(e as Error).message}`)}
+        }
+        for(const pid of who) {
+          try {await api('app','panel-feedback-email',{candidateId:c.id,interviewId:iv.id,panelistId:pid})}
+          catch(e) {failures.push(`${panelists[pid]?.name || 'Panelist'}: ${(e as Error).message}`)}
+        }
+        if(failures.length)setScheduleError(`Interview saved. Some invitations were not sent: ${failures.join('; ')}. Use the email action under Individual panelist feedback below to retry panelist invitations.`)
+        else toast(who.length ? 'Interview saved and invitations sent. Each panelist received a private feedback link.' : 'Interview saved and candidate invitation sent.')
+      } else toast('Interview saved. Request panelist feedback from the round below.')
+      setLink('')
+    } catch(e) {setScheduleError((e as Error).message)} finally {setBusy(false)}
   }
 
   return <section className="stack" style={{ gap: 'var(--space-xl)' }}>
@@ -142,7 +153,7 @@ export function PanelInterviews({ c }: { c: Candidate }) {
         <div className="span-2 stack" style={{ gap: 'var(--space-2xs)' }}>
           <span className="label">Panel</span>
           {active.length ? <div className="chips">{active.map((p) => (
-            <label key={p.id} className="check chip" style={{ cursor: 'pointer' }}><input type="checkbox" checked={who.includes(p.id)} onChange={(e) => setWho(e.target.checked ? [...who, p.id] : who.filter((x) => x !== p.id))} />{p.name}</label>))}</div>
+            <label key={p.id} className="check chip" style={{ cursor: 'pointer' }}><input type="checkbox" checked={who.includes(p.id)} onChange={(e) => setWho(e.target.checked ? [...who, p.id] : who.filter((x) => x !== p.id))} />{p.name}{p.availability && <span className="xs muted"> · {p.availability}</span>}</label>))}</div>
             : <span className="small muted">No panelists yet. Add them on the Panelists page.</span>}
           {who.map((id) => panelists[id]?.calendly && <a key={id} className="xs" href={panelists[id]!.calendly} target="_blank" rel="noreferrer">{panelists[id]!.name}'s availability (Calendly)</a>)}
         </div>
@@ -151,15 +162,17 @@ export function PanelInterviews({ c }: { c: Candidate }) {
       <div className="row">
         <LinkButton href={cal}><CalendarPlus size={14} />Open in Google Calendar</LinkButton>
         <LinkButton variant="ghost" href="https://meet.new"><Video size={14} />meet.new</LinkButton>
-        <Button variant="ink" busy={busy} onClick={schedule}>{canMail && mail ? 'Save and email invite' : 'Save interview'}</Button>
+        <Button variant="ink" busy={busy} onClick={schedule}>{canMail && mail ? 'Save and email invites' : 'Save interview'}</Button>
       </div>
-      {canMail && <label className="row small"><input type="checkbox" checked={mail} onChange={(e) => setMail(e.target.checked)} /> Email the invite to {c.email} with a calendar file{who.length ? ', panel in CC' : ''}. A reminder follows on the morning of the interview.</label>}
+      {canMail && <label className="row small"><input type="checkbox" checked={mail} onChange={(e) => setMail(e.target.checked)} /> Email interview invitations{c.email ? ` to ${c.email}` : ''}{who.length ? ' and a separate private feedback link to each selected panelist' : ''}.</label>}
+      <p className="xs muted">Google Calendar opens the meeting event only. {canServerSend() ? 'Save the interview here and email invitations to send each panelist their own feedback form; feedback links are never included in the candidate’s invite.' : 'Save the interview, then create a panelist preview link below. Demo links work in this browser only.'}</p>
+      {scheduleError && <ErrorBox>{scheduleError}</ErrorBox>}
       {canServerSend() && !autoInvites && <p className="xs muted">Automatic invites are off in Settings.</p>}
     </div>
     <div className="stack">
       <h3>Rounds and panel feedback</h3>
-      {list.length ? list.map((iv) => <InterviewCard key={iv.id} c={c} iv={iv} />) : <p className="small muted">No rounds yet.</p>}
-      <p className="xs muted">Feedback is entered by the recruiter after the panel's call. Calendly links open the panelist's booking page; Calendly's own API is not connected.</p>
+      {list.length ? list.map((iv) => <InterviewCard key={`${c.id}/${iv.id}`} c={c} iv={iv} />) : <p className="small muted">No rounds yet.</p>}
+      <p className="xs muted">Recruiters can record an overall result or request individual panelist feedback below. Calendly links open the panelist's booking page; Calendly's own API is not connected.</p>
     </div>
   </section>
 }
@@ -187,6 +200,7 @@ function InterviewCard({ c, iv }: { c: Candidate; iv: Interview }) {
     </div>
     <Textarea aria-label="Panel feedback" rows={2} value={f.feedback} onChange={(e) => setF({ ...f, feedback: e.target.value })} placeholder="Strong on Spring Boot, weak on system design. Recommend L3." />
     <div><Button size="sm" variant="ink" onClick={save}>Save feedback</Button></div>
+    <PanelFeedbackRequests c={c} iv={iv} />
   </div>
 }
 

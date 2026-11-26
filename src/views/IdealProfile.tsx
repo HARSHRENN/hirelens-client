@@ -1,10 +1,13 @@
-import { Sparkles } from 'lucide-react'
+import { analyse } from '../lib/match'
+import { Sparkles, Upload } from 'lucide-react'
 import { useMemo, useState } from 'react'
-import { Button, Empty, ErrorBox, ScoreCell, useToast } from '../components/ui'
+import { Button, ErrorBox, ScoreCell, useToast } from '../components/ui'
 import { completeJson } from '../lib/ai'
 import { put, useStore } from '../lib/store'
 import type { Candidate, IdealProfile as IP, Job } from '../lib/types'
 import { useUi } from '../lib/uictx'
+import { extractText, ACCEPT } from '../lib/parse'
+import { getState } from '../lib/store'
 import { fmtDate, norm } from '../lib/util'
 
 /* The ideal candidate is drawn from the people the recruiter actually shortlisted,
@@ -22,6 +25,8 @@ function stats(sl: Candidate[]) {
 
 export function IdealProfile({ job }: { job: Job }) {
   const cands = useStore((s) => s.candidates)
+  const [referenceBusy,setReferenceBusy]=useState(false)
+  const [referenceAi,setReferenceAi]=useState(false)
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState('')
   const toast = useToast()
@@ -59,15 +64,31 @@ Return {"summary": string (3 plain sentences: background, what they have done, w
     } finally { setBusy(false) }
   }
 
-  if (!sl.length) return <Empty title="Shortlist someone first">The ideal candidate is drawn from the profiles you shortlist on this job, then used to find more people like them.</Empty>
+  async function reference(files: FileList | null) {
+    if(!files?.length)return
+    if(files.length!==1){setErr('Choose exactly one reference resume. Use Profiles for bulk uploads.');return}
+    const file=files[0]!
+    if(file.size>20*1024*1024){setErr('Choose a resume smaller than 20 MB.');return}
+    setReferenceBusy(true);setErr('')
+    try{
+      const {text}=await extractText(file)
+      if(text.trim().length<30)throw new Error('No readable text. Try a text-based PDF or DOCX.')
+      const {ex}=await analyse(text,job,getState().config.weights,referenceAi)
+      const ideal:IP={summary:ex.summary||`${ex.currentRole || 'Reference profile'}${ex.currentCompany?' at '+ex.currentCompany:''}.`,traits:ex.skills||[],expRange:ex.relevantExp!=null?String(ex.relevantExp):ex.totalExp!=null?String(ex.totalExp):'Not recorded',ctcBand:ex.expectedCtcLpa!=null?String(ex.expectedCtcLpa):'Not recorded',basedOn:[],createdAt:Date.now(),referenceFileName:file.name}
+      await put('jobs',{...getState().jobs[job.id]!,ideal});toast('Reference resume saved as the ideal profile. No candidate was added.')
+    }catch(e){setErr((e as Error).message)}finally{setReferenceBusy(false)}
+  }
 
-  const stale = job.ideal && job.ideal.basedOn.length !== sl.length
+  const stale = job.ideal && !job.ideal.referenceFileName && job.ideal.basedOn.length !== sl.length
   return <section className="section">
+    <div className="stock stack" style={{padding:20,marginBottom:24}}><h2>Ideal candidate reference — one resume</h2><p className="small muted">Upload a single reference resume to describe the ideal profile. This does not add a candidate or change your shortlist. Upload multiple candidate resumes under Profiles.</p>
+    <label className="btn"><Upload size={16}/>{referenceBusy?'Reading reference…':'Choose one reference resume'}<input className="visually-hidden" aria-label="Single ideal candidate resume" type="file" accept={ACCEPT} disabled={referenceBusy || busy} onChange={e=>{reference(e.target.files);e.target.value=''}}/></label>
+    <label className="check"><input type="checkbox" checked={referenceAi} onChange={e=>setReferenceAi(e.target.checked)}/>Use AI for the reference profile</label></div>
     <div className="grid-2" style={{ alignItems: 'start' }}>
       <div className="stack">
         {job.ideal ? (
           <div className="ideal stock">
-            <div className="row" style={{ justifyContent: 'space-between' }}><h2>Ideal candidate</h2><span className="xs muted">from {job.ideal.basedOn.length} shortlisted, {fmtDate(job.ideal.createdAt)}</span></div>
+            <div className="row" style={{ justifyContent: 'space-between' }}><h2>Ideal candidate</h2><span className="xs muted">{job.ideal.referenceFileName ? `Reference: ${job.ideal.referenceFileName}` : `From ${job.ideal.basedOn.length} shortlisted`}, {fmtDate(job.ideal.createdAt)}</span></div>
             <p>{job.ideal.summary}</p>
             <dl className="facts">
               <div><dt>Relevant experience</dt><dd className="fig">{job.ideal.expRange} yrs</dd></div>
@@ -78,7 +99,7 @@ Return {"summary": string (3 plain sentences: background, what they have done, w
           </div>
         ) : <div className="note">{sl.length} shortlisted. Build the ideal profile from them.</div>}
         <div className="row">
-          <Button variant={job.ideal ? 'card' : 'ink'} busy={busy} onClick={build}><Sparkles size={14} />{job.ideal ? 'Rebuild from current shortlist' : 'Build ideal profile'}</Button>
+          <Button variant={job.ideal ? 'card' : 'ink'} busy={busy} disabled={!sl.length || referenceBusy} onClick={build}><Sparkles size={14} />{job.ideal ? 'Rebuild from current shortlist' : 'Build ideal profile'}</Button>
           {stale && <span className="xs muted">The shortlist changed since this was built.</span>}
         </div>
         {err && <ErrorBox>{err}</ErrorBox>}

@@ -1,3 +1,5 @@
+import { recruiterFeedbackHandlers } from './_lib/recruiterFeedback.js'
+import { createRecruiter } from './_lib/recruiters.js'
 import { callModel } from './_lib/ai.js'
 import { emailInvoice, ensureInvoices, trialEndOf } from './_lib/billing.js'
 import { checkPassword, issueToken, requireAdmin, throttleLogin } from './_lib/adminAuth.js'
@@ -5,13 +7,41 @@ import { fail, isEmail, route } from './_lib/http.js'
 import { sendMail } from './_lib/mail.js'
 import { migrate } from './_lib/migrate.js'
 import { sendReminders } from './_lib/reminders.js'
+import { recruiterAnalytics } from './_lib/recruiterAnalytics.js'
 import { DEFAULT_SETTINGS, getSettings, publicSettings, saveSettings } from './_lib/settings.js'
-import { countUsage, db, isAdminProfile, isConfigured, startOfUtcDay, startOfUtcMonth } from './_lib/supa.js'
+import { adminEmails, countUsage, db, isAdminProfile, isConfigured, startOfUtcDay, startOfUtcMonth } from './_lib/supa.js'
 
 // The platform admin's panel (/admin). Every action but login checks the caller is the admin.
 const admin = (req) => requireAdmin(req)
 
 export default route({
+  ...recruiterFeedbackHandlers,
+  async 'create-recruiter'(req,b) {
+    await admin(req)
+    const settings=await getSettings()
+    return createRecruiter(db(),b,{trialDays:settings.trialDays,adminEmails:adminEmails()})
+  },
+  async 'recruiter-analytics'(req, b) {
+    await admin(req)
+    const from = b.from == null ? 0 : Number(b.from), to = b.to == null ? Date.now() : Number(b.to)
+    if (!Number.isFinite(from) || !Number.isFinite(to) || from < 0 || to < from || to > 8640000000000000) fail(400, 'Choose a valid date range.')
+    const { data: profiles, error } = await db().from('profiles').select('id, username, full_name, email, company, status, role, last_seen')
+    if (error) throw error
+    const docs = []
+    for (let start = 0; ; start += 1000) {
+      const { data, error } = await db().from('docs').select('owner, coll, id, data').in('coll', ['jobs', 'candidates']).order('owner').order('coll').order('id').range(start, start + 999)
+      if (error) throw error
+      docs.push(...data)
+      if (data.length < 1000) break
+    }
+    const reviews=[]
+    for(let offset=0;;offset+=1000){
+      const page=await db().from('recruiter_assignment_reviews').select('recruiter_id,outcome,created_at').order('id').range(offset,offset+999)
+      if(page.error){if(['PGRST205','42P01'].includes(page.error.code))break;throw page.error}
+      reviews.push(...page.data);if(page.data.length<1000)break
+    }
+    return recruiterAnalytics(profiles, docs, { from, to, reviews })
+  },
   async login(req, b) {
     const t = throttleLogin(req)
     await new Promise((r) => setTimeout(r, 400)) // slows guessing

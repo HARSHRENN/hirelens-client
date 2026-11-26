@@ -18,10 +18,10 @@ function open(): Promise<IDBDatabase> {
 
 export interface StoredFile { name: string; type: string; blob: Blob; savedAt: number }
 
-export async function saveOriginal(candidateId: string, file: File): Promise<boolean> {
+export async function saveOriginal(candidateId: string, file: File, jobId?: string): Promise<boolean> {
   if (MODE() === 'cloud') {
     try {
-      const { path, token } = await api<{ path: string; token: string }>('app', 'upload-url', { candidateId })
+      const { path, token } = await api<{ path: string; token: string }>('app', 'upload-url', { candidateId, jobId })
       const { error } = await supaSync()!.storage.from('resumes').uploadToSignedUrl(path, token, file, { contentType: file.type || 'application/octet-stream', upsert: true })
       return !error
     } catch { return false }
